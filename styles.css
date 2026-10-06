@@ -147,3 +147,8 @@ details p{margin:9px 0 2px;line-height:1.55}
   .doc-toolbar{grid-template-columns:1fr}
   .doctable{min-width:850px}
 }
+
+.adminhead{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.adminhead h2{margin-top:0}
+.admin label{display:block;font-size:.84rem;font-weight:700;color:var(--muted);margin-top:8px}
+.fullinput{width:100%;margin:6px 0 10px}
