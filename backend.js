@@ -1,6 +1,9 @@
 
 (() => {
   const cfg = window.PP360_CONFIG || {};
+  if (window.pdfjsLib) {
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+  }
   let backendSession = null;
   let backendRole = null;
 
@@ -48,6 +51,110 @@
       backendSession = newSession;
       await refreshBackendRole();
     });
+  }
+
+
+  async function extractPdfText(file) {
+    if (!window.pdfjsLib) throw new Error('PDF reader library is not available.');
+    const buf = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+    const pages = [];
+    for (let p = 1; p <= pdf.numPages; p++) {
+      const page = await pdf.getPage(p);
+      const tc = await page.getTextContent();
+      const text = tc.items.map(x => x.str).join(' ').replace(/\s+/g, ' ').trim();
+      pages.push({ page: p, text });
+    }
+    const combined = pages.map(x => `[[PAGE ${x.page}]]\n${x.text}`).join('\n\n');
+    return { pages, combined, pageCount: pdf.numPages };
+  }
+
+  function queryTokens(q) {
+    return norm(q).split(' ').filter(w => w.length >= 2);
+  }
+
+  function pageMatches(pageText, tokens) {
+    const t = pageText.toLowerCase();
+    let score = 0;
+    for (const token of tokens) {
+      const n = t.split(token).length - 1;
+      if (n > 0) score += Math.min(n, 8);
+    }
+    return score;
+  }
+
+  function makeSnippet(text, tokens) {
+    if (!text) return '';
+    const lower = text.toLowerCase();
+    let pos = -1;
+    for (const token of tokens) {
+      const p = lower.indexOf(token);
+      if (p >= 0 && (pos < 0 || p < pos)) pos = p;
+    }
+    if (pos < 0) pos = 0;
+    const start = Math.max(0, pos - 220);
+    const end = Math.min(text.length, pos + 520);
+    return (start > 0 ? '…' : '') + text.slice(start, end).trim() + (end < text.length ? '…' : '');
+  }
+
+  async function searchPrivateDocuments(q) {
+    if (!backendSession || !client()) return [];
+    const { data, error } = await client()
+      .from('documents')
+      .select('id,file_name,category,document_type,processing_status,extracted_text,page_count')
+      .eq('processing_status', 'ready')
+      .not('extracted_text', 'is', null);
+    if (error || !data) return [];
+
+    const tokens = queryTokens(q);
+    if (!tokens.length) return [];
+
+    const hits = [];
+    for (const d of data) {
+      const raw = d.extracted_text || '';
+      const parts = raw.split(/\[\[PAGE (\d+)\]\]\n?/g);
+      for (let i = 1; i < parts.length; i += 2) {
+        const pageNo = Number(parts[i]);
+        const text = parts[i + 1] || '';
+        const score = pageMatches(text, tokens);
+        if (score > 0) {
+          hits.push({
+            score,
+            file_name: d.file_name,
+            page: pageNo,
+            text,
+            category: d.category,
+            document_type: d.document_type
+          });
+        }
+      }
+    }
+    return hits.sort((a,b)=>b.score-a.score).slice(0,6);
+  }
+
+  function renderPrivateHits(q, hits) {
+    const cards = hits.map((h, i) => `
+      <div class="sourcehit">
+        <div class="answerhead">
+          <span class="badge">${esc(h.category || 'Plant document')}</span>
+          <span class="confidence">${esc(h.file_name)} • Page ${h.page}</span>
+        </div>
+        <p>${esc(makeSnippet(h.text, queryTokens(q)))}</p>
+      </div>`).join('');
+
+    return `<div class="card result">
+      <div class="answerhead">
+        <span class="badge ok">Plant document result</span>
+        <span class="confidence">${hits.length} relevant page${hits.length===1?'':'s'} found</span>
+      </div>
+      <h2>${esc(q)}</h2>
+      <div class="quickanswer">
+        <b>Simple answer</b>
+        <p>I found this information in your uploaded plant documents. The most relevant pages are shown below so you can verify the original source.</p>
+      </div>
+      ${cards}
+      <div class="sourcebox"><b>Note:</b> This Lite search retrieves matching passages. Structured AI summarization of equipment data will be added in the next step.</div>
+    </div>`;
   }
 
   adminPage = async function () {
@@ -241,17 +348,17 @@
         xhr.send(file);
       });
 
-      const { error: dbError } = await client().from('documents').insert({
+      const { data: insertedRows, error: dbError } = await client().from('documents').insert({
         file_name: file.name,
         storage_path: storagePath,
         category: guessCategory(file.name),
         document_type: guessDocType(file.name),
         file_size: file.size,
         mime_type: file.type || null,
-        processing_status: 'uploaded',
+        processing_status: file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf') ? 'processing' : 'uploaded',
         uploaded_by: s.user.id,
         metadata: { original_name: file.name }
-      });
+      }).select('id').single();
 
       if (dbError) {
         await client().storage.from('plant-documents').remove([storagePath]);
@@ -260,7 +367,31 @@
 
       bar.style.width = '100%';
       pct.textContent = '100%';
-      status.innerHTML = '<span class="oktext">✓ Secure upload completed</span>';
+
+      if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
+        status.textContent = 'Upload complete. Extracting PDF text page by page…';
+        try {
+          const extracted = await extractPdfText(file);
+          const { error: extractError } = await client().from('documents').update({
+            extracted_text: extracted.combined,
+            page_count: extracted.pageCount,
+            processing_status: 'ready',
+            updated_at: new Date().toISOString()
+          }).eq('id', insertedRows.id);
+          if (extractError) throw extractError;
+          status.innerHTML = '<span class="oktext">✓ Secure upload + PDF indexing completed</span>';
+        } catch (extractErr) {
+          await client().from('documents').update({
+            processing_status: 'error',
+            updated_at: new Date().toISOString(),
+            metadata: { original_name: file.name, extraction_error: String(extractErr.message || extractErr) }
+          }).eq('id', insertedRows.id);
+          status.innerHTML = '<span class="errtext">Upload saved, but PDF text extraction failed: ' + esc(extractErr.message || String(extractErr)) + '</span>';
+        }
+      } else {
+        status.innerHTML = '<span class="oktext">✓ Secure upload completed</span>';
+      }
+
       await loadDocsFromBackend();
     } catch (err) {
       bar.classList.add('errorbar');
@@ -395,6 +526,27 @@
     }
 
     await loadDocsFromBackend();
+  };
+
+
+  const originalSearchAll = searchAll;
+  searchAll = async function () {
+    const raw = document.getElementById('q').value.trim();
+    if (!raw) return;
+
+    history = [raw, ...history.filter(x => norm(x) !== norm(raw))].slice(0, 30);
+    localStorage.setItem('pp360history', JSON.stringify(history));
+
+    if (backendSession && backendRole && ['admin','engineer','viewer'].includes(backendRole)) {
+      const hits = await searchPrivateDocuments(raw);
+      if (hits.length) {
+        renderTabs();
+        document.getElementById('view').innerHTML = renderPrivateHits(raw, hits);
+        return;
+      }
+    }
+
+    originalSearchAll();
   };
 
   restoreBackendSession();
