@@ -400,6 +400,52 @@
     }
   }
 
+
+  async function indexExistingPdf(id) {
+    const d = docs.find(x => x.id === id);
+    if (!d) return;
+    if (!confirm('Index this PDF now?')) return;
+
+    try {
+      const { error: markError } = await client()
+        .from('documents')
+        .update({ processing_status:'processing', updated_at:new Date().toISOString() })
+        .eq('id', id);
+      if (markError) throw markError;
+
+      await loadDocsFromBackend();
+
+      const { data: blob, error: downloadError } =
+        await client().storage.from('plant-documents').download(d.storage_path);
+      if (downloadError) throw downloadError;
+
+      const extracted = await extractPdfText(blob);
+
+      const { error: updateError } = await client()
+        .from('documents')
+        .update({
+          extracted_text: extracted.combined,
+          page_count: extracted.pageCount,
+          processing_status:'ready',
+          updated_at:new Date().toISOString()
+        })
+        .eq('id', id);
+
+      if (updateError) throw updateError;
+      await loadDocsFromBackend();
+      alert('PDF indexing completed.');
+    } catch (err) {
+      await client().from('documents').update({
+        processing_status:'error',
+        updated_at:new Date().toISOString()
+      }).eq('id', id);
+      await loadDocsFromBackend();
+      alert('PDF indexing failed: ' + (err.message || String(err)));
+    }
+  }
+
+  window.indexExistingPdf = indexExistingPdf;
+
   async function loadDocsFromBackend() {
     const { data, error } = await client()
       .from('documents')
@@ -449,6 +495,9 @@
         <td>${d.created_at ? new Date(d.created_at).toLocaleString() : '—'}</td>
         <td><span class="badge ok">${esc(d.processing_status || 'uploaded')}</span></td>
         <td class="nowrap">
+          ${((d.mime_type||'').includes('pdf') || (d.file_name||'').toLowerCase().endsWith('.pdf')) && d.processing_status !== 'ready'
+            ? `<button onclick="indexExistingPdf('${d.id}')">Index PDF</button>`
+            : ''}
           <button onclick="editDoc('${d.id}')">Edit</button>
           <button class="dangerbtn" onclick="del('${d.id}')">Delete</button>
         </td>
