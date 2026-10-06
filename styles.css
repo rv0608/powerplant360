@@ -152,3 +152,6 @@ details p{margin:9px 0 2px;line-height:1.55}
 .adminhead h2{margin-top:0}
 .admin label{display:block;font-size:.84rem;font-weight:700;color:var(--muted);margin-top:8px}
 .fullinput{width:100%;margin:6px 0 10px}
+
+.sourcehit{border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin:12px 0;background:var(--card)}
+.sourcehit p{margin:8px 0 0;line-height:1.55}
