@@ -1,0 +1,149 @@
+:root{--bg:#f4f7fb;--card:#fff;--ink:#142536;--muted:#64748b;--brand:#0b3155;--accent:#0b78d0;--line:#dce5ee}*{box-sizing:border-box}body{margin:0;font:15px system-ui,-apple-system,Segoe UI,sans-serif;background:var(--bg);color:var(--ink)}header{background:var(--brand);color:white;padding:14px max(16px,calc((100% - 1100px)/2));display:flex;justify-content:space-between;align-items:center}header b{font-size:22px}header small{display:block;opacity:.8}button{border:0;border-radius:10px;padding:10px 14px;cursor:pointer}main{max-width:1100px;margin:auto;padding:18px}.hero{background:linear-gradient(135deg,#0b3155,#0b78d0);color:white;border-radius:18px;padding:24px}.hero h1{margin-top:0}.search{display:flex;gap:8px}.search input{flex:1;padding:14px;border:0;border-radius:10px;font-size:16px}.search button{background:#ffd166;font-weight:700}.hero p{margin-bottom:0;font-size:13px;opacity:.9}nav{display:flex;gap:8px;overflow:auto;padding:16px 0}nav button{white-space:nowrap;background:var(--card);border:1px solid var(--line)}nav button.active{background:var(--brand);color:white}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px}.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;box-shadow:0 2px 8px #00000008}.card h3{margin:0 0 8px}.muted{color:var(--muted)}.badge{display:inline-block;background:#e8f2fb;color:#075b9d;padding:4px 8px;border-radius:999px;font-size:12px}.danger{background:#fee2e2;color:#991b1b}.ok{background:#dcfce7;color:#166534}table{width:100%;border-collapse:collapse;background:var(--card)}td,th{padding:10px;border-bottom:1px solid var(--line);text-align:left}.actions{display:flex;gap:8px;flex-wrap:wrap}.primary{background:var(--accent);color:white}.admin{background:#fff7df;border:1px solid #f5d978}.result{line-height:1.55}footer{text-align:center;color:var(--muted);padding:24px}body.dark{--bg:#0f1720;--card:#172331;--ink:#e7eef6;--muted:#a6b4c3;--line:#2b3b4c;--brand:#071f36}.upload{border:2px dashed var(--line);padding:24px;text-align:center;border-radius:14px}input,select{padding:10px;border:1px solid var(--line);border-radius:9px;background:var(--card);color:var(--ink)}@media(max-width:600px){main{padding:10px}.hero{padding:18px}.search{flex-direction:column}.grid{grid-template-columns:1fr 1fr}.card{padding:13px}header{padding:12px 14px}}
+
+
+details{border-top:1px solid var(--line);padding:12px 0}
+details summary{cursor:pointer;font-weight:700;color:var(--ink)}
+details p{margin:9px 0 2px;line-height:1.55}
+.quickanswer{background:var(--soft);border-radius:14px;padding:14px 16px;margin:14px 0}
+.quickanswer p{margin:7px 0 0;line-height:1.55}
+.sourcebox{margin:16px 0;padding:12px 14px;border-left:4px solid #2d79c7;background:var(--soft);border-radius:8px}
+.notice{background:#fff8df;border:1px solid #f0d67d;border-radius:10px;padding:12px 14px;margin:12px 0;line-height:1.45;color:#5b4810}
+.dark .notice{background:#3a321b;color:#f4e7ad;border-color:#766329}
+.answerhead{display:flex;justify-content:space-between;gap:12px;align-items:center}
+.confidence{font-size:.85rem;color:var(--muted)}
+.linkbtn{border:0;background:transparent;color:#2571bd;padding:0;cursor:pointer;font:inherit;text-align:left}
+.result h2{margin-bottom:8px}
+
+
+.dropzone{
+  border:2px dashed #8aa9c9;
+  border-radius:16px;
+  padding:28px 18px;
+  text-align:center;
+  background:var(--soft);
+  transition:.2s ease;
+  cursor:pointer;
+  margin:14px 0;
+}
+.dropzone.dragover{
+  border-color:#2571bd;
+  transform:scale(1.01);
+  box-shadow:0 0 0 4px rgba(37,113,189,.08);
+}
+.dropicon{font-size:2rem;margin-bottom:4px}
+.uploadchoose{
+  display:inline-block;
+  background:#2571bd;
+  color:white;
+  padding:10px 16px;
+  border-radius:10px;
+  font-weight:700;
+  cursor:pointer;
+}
+.uploadqueue{display:grid;gap:10px;margin:14px 0 18px}
+.uploaditem{
+  border:1px solid var(--line);
+  border-radius:12px;
+  padding:12px 14px;
+  background:var(--card);
+}
+.uploadrow{display:flex;justify-content:space-between;gap:12px;align-items:center}
+.uploadpct{font-weight:800;min-width:46px;text-align:right}
+.progress{
+  height:10px;
+  border-radius:999px;
+  background:var(--soft);
+  overflow:hidden;
+  margin:10px 0 7px;
+}
+.progressbar{
+  height:100%;
+  width:0;
+  background:#2571bd;
+  transition:width .12s linear;
+}
+.errorbar{background:#c0392b!important}
+.oktext{color:#14804a;font-weight:700}
+.errtext{color:#b42318;font-weight:700}
+.small{font-size:.82rem}
+
+
+.localtest-note{
+  max-width:1060px;
+  margin:14px auto 0;
+  padding:10px 14px;
+  border-radius:10px;
+  background:#fff8df;
+  border:1px solid #f0d67d;
+  color:#5b4810;
+  font-size:.92rem;
+}
+.dark .localtest-note{background:#3a321b;color:#f4e7ad;border-color:#766329}
+
+
+.doc-toolbar{
+  display:grid;
+  grid-template-columns:1fr 1fr 1.4fr;
+  gap:12px;
+  margin:16px 0;
+}
+.doc-toolbar label,.modalbox label{
+  display:block;
+  font-size:.82rem;
+  font-weight:700;
+  margin-bottom:5px;
+  color:var(--muted);
+}
+.doc-toolbar select,.doc-toolbar input,
+.modalbox input,.modalbox select{
+  width:100%;
+  box-sizing:border-box;
+  padding:9px 10px;
+  border:1px solid var(--line);
+  border-radius:9px;
+  background:var(--card);
+  color:var(--ink);
+}
+.grow{min-width:0}
+.table-scroll{overflow-x:auto}
+.doctable{width:100%;border-collapse:collapse}
+.doctable th,.doctable td{
+  padding:10px;
+  border-bottom:1px solid var(--line);
+  text-align:left;
+  vertical-align:middle;
+}
+.doctable th{font-size:.82rem;color:var(--muted)}
+.nowrap{white-space:nowrap}
+.dangerbtn{color:#a8241f}
+.emptydocs{
+  border:1px dashed var(--line);
+  border-radius:12px;
+  padding:24px;
+  text-align:center;
+  background:var(--soft);
+}
+.modalback{
+  position:fixed;
+  inset:0;
+  background:rgba(0,0,0,.45);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  z-index:9999;
+  padding:16px;
+}
+.modalbox{
+  width:min(520px,100%);
+  background:var(--card);
+  color:var(--ink);
+  border-radius:16px;
+  padding:20px;
+  box-shadow:0 20px 60px rgba(0,0,0,.25);
+}
+.modalbox input,.modalbox select{margin-bottom:12px}
+.modalactions{margin-top:8px}
+@media(max-width:760px){
+  .doc-toolbar{grid-template-columns:1fr}
+  .doctable{min-width:850px}
+}
