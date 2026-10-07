@@ -247,39 +247,53 @@ function show(x){
 
 function equipmentPage(e){
  renderTabs();
- const boilerUpload = e==='CFBC Boiler' && admin ? `
+ const equipmentUpload = admin ? `
    <div class="equipment-uploadbar">
      <div>
-       <b>Boiler Documents</b>
-       <div class="muted small">Upload individual files now, or choose a complete manual ZIP package.</div>
+       <b>${esc(e)} Documents</b>
+       <div class="muted small">Upload individual files now, or choose a complete manual ZIP package for this system.</div>
      </div>
      <div class="actions">
-       <button onclick="openEquipmentUpload()">Upload Documents</button>
-       <button class="primary" onclick="openBoilerPackagePicker()">Upload Manual Package (.zip)</button>
+       <button onclick="openEquipmentUpload('${e.replace(/'/g,"\\'")}')">Upload Documents</button>
+       <button class="primary" onclick="openEquipmentPackagePicker('${e.replace(/'/g,"\\'")}')">Upload Manual Package (.zip)</button>
      </div>
-     <input id="boilerPackageInput" type="file" accept=".zip,application/zip" hidden onchange="boilerPackageSelected(this)">
+     <input id="equipmentPackageInput" type="file" accept=".zip,application/zip" hidden onchange="equipmentPackageSelected(this)">
    </div>` : '';
- document.getElementById('view').innerHTML=`<div class=card><span class=badge>${e}</span><h2>${e}</h2>${boilerUpload}<div class=actions>${['Technical Data','O&M Manuals','Nameplate','Interlocks','SOP','Troubleshooting','Startup / Loading Curves','Calculations','Documents','Notes'].map(b=>`<button onclick="equipmentAction('${e}','${b}')">${b}</button>`).join('')}</div>${e==='CFBC Boiler'?'<h3>Pressure Parts</h3><button class=primary onclick="searchTerm(\'lhs panel\')">LHS Panel</button>':''}</div>`;
+ document.getElementById('view').innerHTML=`<div class=card><span class=badge>${e}</span><h2>${e}</h2>${equipmentUpload}<div class=actions>${['Technical Data','O&M Manuals','Nameplate','Interlocks','SOP','Troubleshooting','Startup / Loading Curves','Calculations','Documents','Notes'].map(b=>`<button onclick="equipmentAction('${e}','${b}')">${b}</button>`).join('')}</div>${e==='CFBC Boiler'?'<h3>Pressure Parts</h3><button class=primary onclick="searchTerm(\'lhs panel\')">LHS Panel</button>':''}</div>`;
 }
 
-function openEquipmentUpload(){
+let pendingEquipmentUpload = '';
+
+function openEquipmentUpload(e){
+ pendingEquipmentUpload = e || '';
  show('Admin');
- setTimeout(()=>document.getElementById('file')?.click(),120);
+ setTimeout(()=>{
+   const input=document.getElementById('file');
+   if(input){
+     input.dataset.category = pendingEquipmentUpload;
+     input.click();
+   }
+ },120);
 }
 
-function openBoilerPackagePicker(){
- const input=document.getElementById('boilerPackageInput');
- if(input) input.click();
+function openEquipmentPackagePicker(e){
+ pendingEquipmentUpload = e || '';
+ const input=document.getElementById('equipmentPackageInput');
+ if(input){
+   input.dataset.category = pendingEquipmentUpload;
+   input.click();
+ }
 }
 
-function boilerPackageSelected(input){
+function equipmentPackageSelected(input){
  const file=input?.files?.[0];
  if(!file) return;
- if(typeof window.handleBoilerPackageUpload==='function'){
-   window.handleBoilerPackageUpload(file);
+ const category=input.dataset.category || pendingEquipmentUpload || 'General';
+ if(typeof window.handleEquipmentPackageUpload==='function'){
+   window.handleEquipmentPackageUpload(file, category);
    return;
  }
- alert('Boiler manual-package processing is being enabled. Individual document upload is already available.');
+ alert(category + ' manual-package processing is being enabled. Individual document upload is already available.');
 }
 
 function equipmentAction(e,b){
