@@ -356,18 +356,7 @@ Deno.serve(async (req) => {
     if (error) throw error;
     if (!docs?.length) {
       if (!allowOnlineWeb) {
-return new Response(JSON.stringify({
-          answer_lines:["No exact plant-document match found."],
-          sources:[],
-          web_sources:[],
-          source_type:"plant",
-          scope
-        }), {
-          headers:{ ...corsHeaders, "Content-Type":"application/json" }
-        });
-      }
-      if (!allowOnlineWeb) {
-return new Response(JSON.stringify({
+        return new Response(JSON.stringify({
           answer_lines:["No exact plant-document match found."],
           sources:[],
           web_sources:[],
@@ -409,6 +398,17 @@ return new Response(JSON.stringify({
     const top = chunks.slice(0, 8);
 
     if (!top.length) {
+      if (!allowOnlineWeb) {
+        return new Response(JSON.stringify({
+          answer_lines:["No exact plant-document match found."],
+          sources:[],
+          web_sources:[],
+          source_type:"plant",
+          scope
+        }), {
+          headers:{ ...corsHeaders, "Content-Type":"application/json" }
+        });
+      }
       const online = await webFallback(openaiKey, model, question, scope);
       await recordUsage(online.__usage, "web", scope);
       delete online.__usage;
