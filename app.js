@@ -370,8 +370,12 @@ async function pressurePartsPackageSelected(input){
 }
 
 function equipmentAction(e,b){
+ if(typeof window.renderEquipmentDocuments==='function' && admin){
+   window.renderEquipmentDocuments(e,b);
+   return;
+ }
  if(b==='Technical Data') { searchTerm(e); return; }
- document.getElementById('view').innerHTML=`<div class="card"><span class="badge">${esc(e)}</span><h2>${esc(b)}</h2><p>This section is ready for your plant documents.</p><p class="muted">When secure document indexing is connected, authorized users will see the relevant uploaded ${esc(b)} here with source/page references.</p></div>`;
+ document.getElementById('view').innerHTML=`<div class="card"><span class="badge">${esc(e)}</span><h2>${esc(b)}</h2><p>Plant documents are available after Admin sign-in.</p></div>`;
 }
 
 function searchTerm(t){
