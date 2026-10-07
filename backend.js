@@ -156,7 +156,6 @@
     return `<div class="card result compactresult">
       <div class="onelineanswer">
         <b>${esc(answer)}</b>
-        <span class="onelinesource"> — Source: ${esc(best.file_name)}, Page ${best.page}</span>
       </div>
     </div>`;
   }
