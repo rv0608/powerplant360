@@ -226,3 +226,8 @@ details p{margin:9px 0 2px;line-height:1.55}
 .search-ai button{white-space:nowrap}
 .ai-answer-badge{display:inline-block;font-size:12px;font-weight:700;padding:4px 8px;margin-bottom:10px;border-radius:999px;background:#e8f2ff;color:#0b4f8a}
 @media (max-width:720px){.search-ai{grid-template-columns:1fr}.search-ai select,.search-ai input,.search-ai button{width:100%}}
+
+
+.online-reference-note{font-size:13px;margin:0 0 10px;color:#667085}
+.online-sources{display:flex;flex-direction:column;gap:7px;margin-top:14px;padding-top:12px;border-top:1px solid #e7ebef}
+.online-source-link{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
