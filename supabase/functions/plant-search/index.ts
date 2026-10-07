@@ -166,7 +166,7 @@ Rules:
 - If the question asks for a plant-specific make, model, setting, rating, serial number, exact design value, or exact operating limit, state that the plant-specific value is not verified and then give only useful general context if available.
 - Prefer manufacturer/OEM documentation, standards bodies, government/academic sources, and established engineering references.
 - For ordinary questions: return exactly ONE concise plain-text line, normally under 35 words.
-- For regulatory/limit/standard/norm/emission questions: return 2–4 plain-text parameter lines, each in "Parameter : Value / condition" format. Put SO₂/SOx, NOx, PM, and Applicability on separate lines when relevant.
+- For regulatory/limit/standard/norm/emission questions: return 2–4 plain-text parameter lines. Start each line with one of these exact labels when relevant: "SO₂/SOx :", "NOx :", "PM :", "Applicability :". Never place two labels on the same line.
 - Do not use bullets, markdown, headings, bold markers, tables, inline URLs, or source names in the answer text.
 - Source links will be shown separately by the app.
 - If the question asks about limits, standards, norms, CPCB/MoEFCC, SO₂/SOx, NOx, PM or emissions, prioritize official Indian sources such as CPCB and MoEFCC over secondary sites.
@@ -214,18 +214,16 @@ Rules:
   let answerLines:string[] = [];
 
   if (regulatory) {
-    answerLines = answer
-      .replace(/;\s*(?=(?:SO₂|SO2|SOx|NOx|NO₂|NO2|PM|Applicability)\s*:)/gi, "\n")
+    const regulatoryText = answer
+      .replace(/\(\s*\)/g, "")
+      .replace(/\s+0\s+(?=(?:SO₂\s*\/\s*SOx|SO₂|SO2|SOx|NOx|NO₂|NO2|PM|Applicability)\s*:)/gi, "\n")
+      .replace(/;\s*(?=(?:SO₂\s*\/\s*SOx|SO₂|SO2|SOx|NOx|NO₂|NO2|PM|Applicability)\s*:)/gi, "\n")
+      .replace(/\s+(?=(?:SO₂\s*\/\s*SOx|SO₂|SO2|SOx|NOx|NO₂|NO2|PM|Applicability)\s*:)/gi, "\n");
+
+    answerLines = regulatoryText
       .split(/\n+/)
       .map(cleanWebLine)
       .filter(Boolean);
-
-    if (answerLines.length === 1) {
-      answerLines = answerLines[0]
-        .split(/\s+(?=(?:SO₂|SO2|SOx|NOx|NO₂|NO2|PM|Applicability)\s*:)/gi)
-        .map(cleanWebLine)
-        .filter(Boolean);
-    }
   } else {
     const cleanLine = cleanWebLine(answer);
     answerLines = [cleanLine || "No reliable online reference found."];
