@@ -2282,8 +2282,17 @@
       : String(payload?.answer || '').split(/\n+/).map(x=>x.trim()).filter(Boolean);
 
     const isWeb = payload?.source_type === 'web';
+    const onlineLine = lines.join(' ')
+      .replace(/【[^】]+】/g,'')
+      .replace(/\[(?:source\s*)?\d+\]/gi,'')
+      .replace(/\((?:source\s*)?\d+\)/gi,'')
+      .replace(/[\uE000-\uF8FF]/g,'')
+      .replace(/\s+0\s*$/g,'')
+      .replace(/\s+/g,' ')
+      .trim();
+
     const lineHtml = isWeb
-      ? '<div class="onelineanswer"><b>' + esc(lines.join(' ').replace(/\s+/g,' ').trim() || 'No reliable online reference found.') + '</b></div>'
+      ? '<div class="onelineanswer"><b>' + esc(onlineLine || 'No reliable online reference found.') + '</b></div>'
       : (lines.length
           ? '<div class="multi-answer">' + lines.map(line => {
               const m = line.match(/^([^:]{1,80})\s*:\s*(.+)$/);
