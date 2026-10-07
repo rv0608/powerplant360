@@ -885,6 +885,28 @@
     }
     return best.label + ' : ' + best.value;
   }
+  function cleanDisplayedAnswer(value) {
+    let s = String(value || '').replace(/\s+/g,' ').trim();
+
+    // Remove repeated document headers / page-number noise from displayed answers.
+    const boilerplate = [
+      /Shri\s+GIRIJA\s+Alloy(?:s)?\s*&\s*Power\s*\(I\)\s*(?:Private\s+Limited|Pvt\.?\s*Ltd\.?)\s*\d*/ig,
+      /Shri\s+Girija\s+Alloy(?:s)?\s*&\s*Power\s*\(I\)\s*(?:Private\s+Limited|Pvt\.?\s*Ltd\.?)\s*\d*/ig,
+      /Operation\s*&\s*Maintenance\s+Manual\s*\d*/ig,
+      /THERMAX\s+PROJECT\s+NO\.?\s*[:.-]?\s*PC\s*\d+[–-]?\d*/ig
+    ];
+    for (const re of boilerplate) s = s.replace(re,' ');
+
+    // Remove isolated page numbers left between the label and actual value.
+    s = s.replace(/(:\s*)\d{1,3}\s+(?=[A-Z][A-Z0-9 &/()-]{3,})/g,'$1');
+
+    return s
+      .replace(/\s+/g,' ')
+      .replace(/\s+([,:;])/g,'$1')
+      .replace(/:\s*:/g,':')
+      .trim();
+  }
+
   function renderPrivateHits(q, hits) {
     if (!hits || !hits.length) {
       return '<div class="card result compactresult"><div class="onelineanswer"><b>No exact plant-document match found.</b></div></div>';
@@ -946,6 +968,8 @@
     if (!answer || !answerHit) {
       return '<div class="card result compactresult"><div class="onelineanswer"><b>No exact plant-document match found.</b></div></div>';
     }
+
+    answer = cleanDisplayedAnswer(answer);
 
     const view = answerHit.id
       ? '<div class="result-actions"><button onclick="viewDocument(\'' + answerHit.id + '\')">View related document</button></div>'
