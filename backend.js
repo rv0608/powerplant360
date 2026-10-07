@@ -239,6 +239,65 @@
     return out.length>260 ? out.slice(0,260)+'…' : out;
   }
 
+  function exactEquipmentQuery(q) {
+    const nq = norm(q);
+    const defs = [
+      {label:'ID Fan', exact:['id fan','induced draft fan'], vendorQuery:'id fan make'},
+      {label:'PA Fan', exact:['pa fan','primary air fan'], vendorQuery:'pa fan make'},
+      {label:'SA Fan', exact:['sa fan','secondary air fan'], vendorQuery:'sa fan make'},
+      {label:'BFP', exact:['bfp','bfw pump','boiler feed pump','boiler feed water pump'], vendorQuery:'bfp make'},
+      {label:'Steam Turbine', exact:['steam turbine','turbine'], vendorQuery:'turbine make'},
+      {label:'ESP', exact:['esp','electrostatic precipitator'], vendorQuery:'esp make'}
+    ];
+    return defs.find(d => d.exact.includes(nq)) || null;
+  }
+
+  function equipmentPrimaryReference(eq, documents) {
+    if (!eq) return null;
+
+    const vendor = findExplicitEquipmentVendor(eq.vendorQuery, documents);
+    if (vendor) {
+      return {
+        answer: eq.label + ' : ' + vendor.answer.replace(/^.*?\sMake\s*:\s*/i,''),
+        id: vendor.id,
+        storage_path: vendor.storage_path,
+        file_name: vendor.file_name,
+        category: vendor.category,
+        document_type: vendor.document_type
+      };
+    }
+
+    const terms = eq.exact.map(norm);
+    let best = null;
+    for (const d of documents || []) {
+      const hay = norm([
+        d.file_name,
+        d.document_type,
+        (d.metadata && d.metadata.section) || '',
+        (d.metadata && d.metadata.source_path) || ''
+      ].join(' '));
+
+      if (!terms.some(t => hay.includes(t))) continue;
+
+      let score = 0;
+      if (/manual|o&m|technical data|datasheet|specification|drawing/.test(hay)) score += 100;
+      if (/motor|bearing|actuator|cable|junction box/.test(hay)) score -= 120;
+      if (/vendor manuals|auxiliaries/.test(hay)) score += 50;
+
+      if (!best || score > best.score) best = {score,d};
+    }
+
+    if (!best) return null;
+    return {
+      answer: eq.label + ' : ' + (best.d.file_name || 'Plant document'),
+      id: best.d.id,
+      storage_path: best.d.storage_path,
+      file_name: best.d.file_name,
+      category: best.d.category,
+      document_type: best.d.document_type
+    };
+  }
+
   function definitionQueryTerm(q) {
     const raw = String(q || '').trim();
     const n = norm(raw);
@@ -307,6 +366,29 @@
 
     const tokens = queryTokens(q);
     if (!tokens.length) return [];
+
+    const exactEquipment = exactEquipmentQuery(q);
+    if (exactEquipment) {
+      const ref = equipmentPrimaryReference(exactEquipment, data);
+      if (ref) {
+        return [{
+          score: 100000,
+          direct_answer: ref.answer,
+          id: ref.id,
+          storage_path: ref.storage_path,
+          file_name: ref.file_name,
+          page: null,
+          text: '',
+          category: ref.category,
+          document_type: ref.document_type,
+          section: 'Vendor Manuals / Auxiliaries',
+          source_path: '',
+          detail_matched: 1,
+          detail_total: 1,
+          detail_ratio: 1
+        }];
+      }
+    }
 
     const definitionTerm = definitionQueryTerm(q);
     if (definitionTerm) {
