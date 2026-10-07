@@ -224,6 +224,103 @@
     return snippet.length > 160 ? snippet.slice(0,160) + '…' : snippet;
   }
 
+  function equipmentAnchoredFieldAnswer(q, hits) {
+    const nq = norm(q);
+    const equipmentAliases = [
+      ['pa fan',['pa fan','primary air fan']],
+      ['sa fan',['sa fan','secondary air fan']],
+      ['id fan',['id fan','induced draft fan']],
+      ['bfp',['bfp','bfw pump','boiler feed pump','boiler feed water pump']],
+      ['steam turbine',['steam turbine','turbine']],
+      ['esp',['esp','electrostatic precipitator']]
+    ];
+
+    const fieldDefs = [
+      {terms:['make','manufacturer','oem'], labels:['Make','Manufacturer','OEM']},
+      {terms:['model','type'], labels:['Model','Type']},
+      {terms:['speed','rpm'], labels:['Rated Speed','Speed']},
+      {terms:['capacity','flow'], labels:['Rated Capacity','Capacity','Flow']},
+      {terms:['head'], labels:['Rated Head','Head']},
+      {terms:['power','output','rating'], labels:['Rated Output','Rated Power','Power','Output','Rating']},
+      {terms:['pressure'], labels:['Rated Pressure','Design Pressure','Pressure']},
+      {terms:['temperature','temp'], labels:['Rated Temperature','Design Temperature','Temperature','Temp']}
+    ];
+
+    const field = fieldDefs.find(d => d.terms.some(t => nq.includes(t)));
+    if (!field) return '';
+
+    let eq = null;
+    for (const item of equipmentAliases) {
+      if (item[1].some(a => nq.includes(a))) { eq = item; break; }
+    }
+    if (!eq) return '';
+
+    const escRe = v => v.replace(/[.*+?^()|[\]\\]/g,'\\$&');
+    const allLabels = fieldDefs.flatMap(d=>d.labels).sort((a,b)=>b.length-a.length);
+    const stopAlt = allLabels.map(escRe).join('|');
+
+    let best = null;
+
+    for (const hit of hits) {
+      const text = (hit.text || '').replace(/\s+/g,' ').trim();
+      const lower = text.toLowerCase();
+
+      const anchors = [];
+      for (const alias of eq[1]) {
+        let from=0;
+        while(true){
+          const pos=lower.indexOf(alias,from);
+          if(pos<0) break;
+          anchors.push({alias,pos});
+          from=pos+alias.length;
+        }
+      }
+      if(!anchors.length) continue;
+
+      for(const a of anchors){
+        const segmentStart=Math.max(0,a.pos-100);
+        const segmentEnd=Math.min(text.length,a.pos+700);
+        const segment=text.slice(segmentStart,segmentEnd);
+        const segLower=segment.toLowerCase();
+
+        // Reject segments that are clearly subcomponent-only blocks unless equipment name is prominent.
+        const badTerms=['bearing housing','bearing no','motor make','actuator make','gearbox make','coupling make'];
+        let base=Number(hit.score||0)+150;
+        if(segLower.includes(a.alias+' specifications')||segLower.includes(a.alias+' specification')) base+=220;
+        if(segLower.includes('technical data')||segLower.includes('datasheet')) base+=80;
+        if((hit.file_name||'').toLowerCase().includes(a.alias.replace(/\s+/g,'')) || (hit.file_name||'').toLowerCase().includes(a.alias)) base+=60;
+        if(badTerms.some(t=>segLower.includes(t))) base-=120;
+
+        for(const label of field.labels){
+          const re=new RegExp('\\b'+escRe(label)+'\\s*[:=\\-]?\\s*(.{1,80}?)(?=\\s+(?:'+stopAlt+')\\s*[:=\\-]?|$)','ig');
+          let m;
+          while((m=re.exec(segment))!==null){
+            let value=(m[1]||'').trim().replace(/[.,;]+$/,'').trim();
+            if(!value || value.length>60) continue;
+
+            const before=segLower.slice(Math.max(0,m.index-140),m.index);
+            let score=base;
+
+            // Strongly prefer field values close to the equipment anchor.
+            const dist=Math.abs((segmentStart+m.index)-a.pos);
+            score+=Math.max(0,120-Math.floor(dist/4));
+
+            // Penalize bearing/motor/actuator context before the field.
+            if(/bearing|motor|actuator|gearbox|coupling/.test(before)) score-=180;
+
+            if(!best || score>best.score) best={score,label,value,equipment:eq[0]};
+          }
+        }
+      }
+    }
+
+    if(!best) return '';
+    const prefix = best.equipment==='bfp' ? 'BFP' : best.equipment.toUpperCase();
+    if(field.terms.includes('model') || field.terms.includes('type')) return prefix+' Model : '+best.value;
+    if(field.terms.includes('make') || field.terms.includes('manufacturer') || field.terms.includes('oem')) return prefix+' Make : '+best.value;
+    return best.label+' : '+best.value;
+  }
+
   function contextualFieldAnswer(q, hits) {
     const nq = norm(q);
     const defs = [
@@ -311,7 +408,8 @@
     return best.label + ' : ' + best.value;
   }
   function renderPrivateHits(q, hits) {
-    let answer = contextualFieldAnswer(q, hits);
+    let answer = equipmentAnchoredFieldAnswer(q, hits);
+    if (!answer) answer = contextualFieldAnswer(q, hits);
     if (!answer) {
       for (const hit of hits) {
         const candidate = oneLineFromHit(q, hit);
