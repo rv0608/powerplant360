@@ -99,6 +99,76 @@
     return (start > 0 ? '…' : '') + text.slice(start, end).trim() + (end < text.length ? '…' : '');
   }
 
+  function findExplicitEquipmentVendor(q, documents) {
+    const nq = norm(q);
+    if (!/(make|manufacturer|oem)/.test(nq)) return null;
+
+    const defs = [
+      {
+        label:'PA FAN',
+        wants:['pa fan','primary air fan'],
+        patterns:[
+          /ID\s*\/\s*SA\s*\/\s*PA\s+Fan\s*[^A-Za-z0-9]{1,4}\s*([A-Za-z][A-Za-z0-9&().,' -]{2,60}?)(?=\s+(?:O\s*&\s*M|Section|Fan manual|1\.|$))/i,
+          /PA\s+Fan\s*[^A-Za-z0-9]{1,4}\s*([A-Za-z][A-Za-z0-9&().,' -]{2,60}?)(?=\s+(?:O\s*&\s*M|Section|Manual|Drawing|Curves?|$))/i
+        ]
+      },
+      {
+        label:'SA FAN',
+        wants:['sa fan','secondary air fan'],
+        patterns:[
+          /ID\s*\/\s*SA\s*\/\s*PA\s+Fan\s*[^A-Za-z0-9]{1,4}\s*([A-Za-z][A-Za-z0-9&().,' -]{2,60}?)(?=\s+(?:O\s*&\s*M|Section|Fan manual|1\.|$))/i,
+          /SA\s+Fan\s*[^A-Za-z0-9]{1,4}\s*([A-Za-z][A-Za-z0-9&().,' -]{2,60}?)(?=\s+(?:O\s*&\s*M|Section|Manual|Drawing|Curves?|$))/i
+        ]
+      },
+      {
+        label:'ID FAN',
+        wants:['id fan','induced draft fan'],
+        patterns:[
+          /ID\s*\/\s*SA\s*\/\s*PA\s+Fan\s*[^A-Za-z0-9]{1,4}\s*([A-Za-z][A-Za-z0-9&().,' -]{2,60}?)(?=\s+(?:O\s*&\s*M|Section|Fan manual|1\.|$))/i,
+          /ID\s+Fan\s*[^A-Za-z0-9]{1,4}\s*([A-Za-z][A-Za-z0-9&().,' -]{2,60}?)(?=\s+(?:O\s*&\s*M|Section|Manual|Drawing|Curves?|$))/i
+        ]
+      },
+      {
+        label:'BFP',
+        wants:['bfp','bfw pump','boiler feed pump','boiler feed water pump'],
+        patterns:[
+          /BFW\s+Pump\s*[^A-Za-z0-9]{1,4}\s*([A-Za-z][A-Za-z0-9&().,' -]{2,60}?)(?=\s+(?:O\s*&\s*M|Section|Index sheet|Technical Documents|Pump Manual|$))/i,
+          /Boiler\s+Feed(?:\s+Water)?\s+Pump\s*[^A-Za-z0-9]{1,4}\s*([A-Za-z][A-Za-z0-9&().,' -]{2,60}?)(?=\s+(?:O\s*&\s*M|Section|Manual|$))/i
+        ]
+      }
+    ];
+
+    const def = defs.find(d => d.wants.some(w => nq.includes(w)));
+    if (!def) return null;
+
+    for (const d of documents || []) {
+      const raw = String(d.extracted_text || '').replace(/\s+/g,' ').trim();
+      if (!raw) continue;
+
+      for (const re of def.patterns) {
+        const m = raw.match(re);
+        if (!m) continue;
+
+        let vendor = (m[1] || '').trim()
+          .replace(/[,:;.-]+$/,'')
+          .replace(/\s+/g,' ')
+          .trim();
+
+        if (!vendor || /motor|bearing|actuator|gearbox|coupling/i.test(vendor)) continue;
+
+        return {
+          answer: def.label + ' Make : ' + vendor,
+          id: d.id,
+          storage_path: d.storage_path,
+          file_name: d.file_name,
+          category: d.category,
+          document_type: d.document_type
+        };
+      }
+    }
+    return null;
+  }
+
   async function searchPrivateDocuments(q) {
     if (!backendSession || !client()) return [];
     const { data, error } = await client()
@@ -110,6 +180,8 @@
 
     const tokens = queryTokens(q);
     if (!tokens.length) return [];
+
+    const explicitVendor = findExplicitEquipmentVendor(q, data);
 
     const pressurePartTerms = ['panel','pressure part','tube','coil','header','superheater','economiser','economizer','evaporator','water wall','drum','downcomer','riser','sh','economiser coil','economizer coil'];
     const wantsPressureParts = pressurePartTerms.some(t => norm(q).includes(t));
@@ -169,7 +241,23 @@
         }
       }
     }
-    return hits.sort((a,b)=>b.score-a.score).slice(0,30);
+    const ranked = hits.sort((a,b)=>b.score-a.score).slice(0,30);
+    if (explicitVendor) {
+      ranked.unshift({
+        score: 100000,
+        direct_answer: explicitVendor.answer,
+        id: explicitVendor.id,
+        storage_path: explicitVendor.storage_path,
+        file_name: explicitVendor.file_name,
+        page: null,
+        text: '',
+        category: explicitVendor.category,
+        document_type: explicitVendor.document_type,
+        section: 'Vendor Manuals / Auxiliaries',
+        source_path: ''
+      });
+    }
+    return ranked;
   }
 
   function oneLineFromHit(q, hit) {
@@ -530,7 +618,8 @@
     return best.label + ' : ' + best.value;
   }
   function renderPrivateHits(q, hits) {
-    let answer = equipmentVendorFromText(q, hits);
+    let answer = (hits && hits[0] && hits[0].direct_answer) ? hits[0].direct_answer : '';
+    if (!answer) answer = equipmentVendorFromText(q, hits);
     if (!answer) answer = equipmentVendorFromPath(q, hits);
     if (!answer) answer = equipmentAnchoredFieldAnswer(q, hits);
     if (!answer) answer = contextualFieldAnswer(q, hits);
