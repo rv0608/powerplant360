@@ -169,6 +169,19 @@
     return null;
   }
 
+  function querySubEquipment(q) {
+    const nq = norm(q);
+    const defs = [
+      {key:'BFP', terms:['bfp','bfw pump','boiler feed pump','boiler feed water pump'], docTerms:['bfp','bfw pump','boiler feed pump','boiler feed water pump','ksb']},
+      {key:'PA FAN', terms:['pa fan','primary air fan'], docTerms:['pa fan','primary air fan','andrew yule']},
+      {key:'SA FAN', terms:['sa fan','secondary air fan'], docTerms:['sa fan','secondary air fan','andrew yule']},
+      {key:'ID FAN', terms:['id fan','induced draft fan'], docTerms:['id fan','induced draft fan','andrew yule']},
+      {key:'TURBINE', terms:['steam turbine','turbine'], docTerms:['steam turbine','turbine','siemens']},
+      {key:'ESP', terms:['esp','electrostatic precipitator'], docTerms:['esp','electrostatic precipitator','thermax']}
+    ];
+    return defs.find(d => d.terms.some(t => nq.includes(t))) || null;
+  }
+
   function queryEquipmentCategory(q) {
     const nq = norm(q);
     const routes = [
@@ -414,6 +427,7 @@
 
     const explicitVendor = findExplicitEquipmentVendor(q, data);
     const routedCategory = queryEquipmentCategory(q);
+    const subEquipment = querySubEquipment(q);
     const wantsTechnicalData = technicalDataIntent(q);
 
     const pressurePartTerms = ['panel','pressure part','tube','coil','header','superheater','economiser','economizer','evaporator','water wall','drum','downcomer','riser','sh','economiser coil','economizer coil'];
@@ -428,6 +442,22 @@
       const qn = norm(q);
 
       let docBoost = 0;
+
+      // Route sub-equipment questions (BFP, PA/SA/ID Fan, etc.) to their own files first.
+      if (subEquipment) {
+        const subHay = [dName,dType,dSection,(d.metadata && d.metadata.source_path) || ''].join(' ');
+        const subMatch = subEquipment.docTerms.some(t => subHay.includes(norm(t)));
+        if (subMatch) docBoost += 700;
+        else docBoost -= 350;
+
+        // Explicitly penalize sibling fan/pump documents when the requested sub-equipment is absent.
+        if (subEquipment.key === 'BFP' && /pa fan|sa fan|id fan|primary air fan|secondary air fan|induced draft fan/.test(subHay) && !/bfp|bfw pump|boiler feed pump/.test(subHay)) {
+          docBoost -= 900;
+        }
+        if (/ FAN$/.test(subEquipment.key) && /bfp|bfw pump|boiler feed pump/.test(subHay) && !subEquipment.docTerms.some(t => subHay.includes(norm(t)))) {
+          docBoost -= 900;
+        }
+      }
 
       // Route equipment questions to their own document set first.
       if (routedCategory) {
@@ -481,6 +511,10 @@
             [dType,dSection,dName,(d.metadata && d.metadata.source_path) || ''].join(' ')
           );
 
+        const subHayPage = norm([text,d.file_name,(d.metadata && d.metadata.source_path) || '',dSection].join(' '));
+        const subRelevant = !subEquipment || subEquipment.docTerms.some(t => subHayPage.includes(norm(t)));
+
+        if (subEquipment && !subRelevant && !routedTechDoc) continue;
         if (hasDetails && coverage.matched === 0 && !routedTechDoc) continue;
 
         let score = pageMatches(text, tokens, q) + docBoost;
@@ -948,7 +982,9 @@
     // Return a focused snippet from the same strong hit that will be opened by View.
     if (!answer) {
       const routedCategory = queryEquipmentCategory(q);
+      const subEquipment = querySubEquipment(q);
       const strongHit =
+        hits.find(h => subEquipment && subEquipment.docTerms.some(t => norm([h.file_name,h.source_path,h.section,h.text].join(' ')).includes(norm(t))) && h.detail_matched > 0) ||
         hits.find(h => routedCategory && norm(h.category || '') === norm(routedCategory) && h.detail_matched > 0) ||
         hits.find(h => routedCategory && norm(h.category || '') === norm(routedCategory) && /technical data|datasheet|specification/i.test([h.document_type,h.section,h.file_name,h.source_path].join(' '))) ||
         hits.find(h => {
