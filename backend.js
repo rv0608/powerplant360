@@ -134,33 +134,30 @@
     return hits.sort((a,b)=>b.score-a.score).slice(0,6);
   }
 
-  function renderPrivateHits(q, hits) {
-    const tokens = queryTokens(q);
-    const best = hits[0];
-    const bestSnippet = makeSnippet(best.text, tokens);
-    const otherHits = hits.slice(1).map(h => `
-      <details class="sourcehit">
-        <summary><b>${esc(h.file_name)}</b> • Page ${h.page}</summary>
-        <p>${esc(makeSnippet(h.text, tokens))}</p>
-      </details>`).join('');
+  function oneLineFromHit(q, hit) {
+    const text = hit.text || '';
+    const nq = norm(q);
 
-    return `<div class="card result">
-      <div class="answerhead">
-        <span class="badge ok">Plant-specific document result</span>
-        <span class="confidence">Source reference shown</span>
+    if (nq === 'turbine speed' || nq.includes('rated speed')) {
+      const rated = text.match(/Rated Speed\s*:?\s*([0-9.]+)\s*RPM/i);
+      const trip = text.match(/Trip Speed\s*:?\s*([0-9.]+)\s*RPM/i);
+      if (rated) return 'Rated turbine speed: ' + rated[1] + ' RPM' + (trip ? '; trip speed: ' + trip[1] + ' RPM' : '');
+    }
+
+    const tokens = queryTokens(q);
+    const snippet = makeSnippet(text, tokens).replace(/\s+/g,' ').trim();
+    return snippet.length > 180 ? snippet.slice(0,180) + '…' : snippet;
+  }
+
+  function renderPrivateHits(q, hits) {
+    const best = hits[0];
+    const answer = oneLineFromHit(q, best);
+
+    return `<div class="card result compactresult">
+      <div class="onelineanswer">
+        <b>${esc(answer)}</b>
+        <span class="onelinesource"> — Source: ${esc(best.file_name)}, Page ${best.page}</span>
       </div>
-      <h2>${esc(q)}</h2>
-      <div class="plantanswer">
-        <div class="plantanswer-title">Best matching information</div>
-        <p>${esc(bestSnippet)}</p>
-      </div>
-      <div class="sourcebox">
-        <b>Source:</b> ${esc(best.file_name)}<br>
-        <b>Page:</b> ${best.page}<br>
-        <b>Section:</b> ${esc(best.category || 'Plant document')} • ${esc(best.document_type || 'Document')}
-      </div>
-      ${otherHits ? `<h3>Other relevant pages</h3><div class="relatedhits">${otherHits}</div>` : ''}
-      <div class="notice"><b>Important:</b> Verify critical operating, alarm and trip values against the approved current revision before field use.</div>
     </div>`;
   }
 
