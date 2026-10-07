@@ -259,13 +259,14 @@ function equipmentPage(e){
      </div>
      <input id="equipmentPackageInput" type="file" accept=".zip,application/zip" hidden onchange="equipmentPackageSelected(this)">
    </div>` : '';
- document.getElementById('view').innerHTML=`<div class=card><span class=badge>${e}</span><h2>${e}</h2>${equipmentUpload}<div class=actions>${['Technical Data','O&M Manuals','Nameplate','Interlocks','SOP','Troubleshooting','Startup / Loading Curves','Calculations','Documents','Notes'].map(b=>`<button onclick="equipmentAction('${e}','${b}')">${b}</button>`).join('')}</div>${e==='CFBC Boiler'?'<h3>Pressure Parts</h3><button class=primary onclick="searchTerm(\'lhs panel\')">LHS Panel</button>':''}</div>`;
+ document.getElementById('view').innerHTML=`<div class=card><span class=badge>${e}</span><h2>${e}</h2>${equipmentUpload}<div class=actions>${['Technical Data','O&M Manuals','Nameplate','Interlocks','SOP','Troubleshooting','Startup / Loading Curves','Calculations','Documents','Notes'].map(b=>`<button onclick="equipmentAction('${e}','${b}')">${b}</button>`).join('')}</div>${e==='CFBC Boiler'?'<h3>Pressure Parts</h3><button class=primary onclick="pressurePartsPage()">Pressure Parts</button>':''}</div>`;
 }
 
 let pendingEquipmentUpload = '';
 
 function openEquipmentUpload(e){
  pendingEquipmentUpload = e || '';
+ window.pp360UploadContext={category:pendingEquipmentUpload || 'General', section:''};
  show('Admin');
  setTimeout(()=>{
    const input=document.getElementById('file');
@@ -278,6 +279,7 @@ function openEquipmentUpload(e){
 
 function openEquipmentPackagePicker(e){
  pendingEquipmentUpload = e || '';
+ window.pp360UploadContext={category:pendingEquipmentUpload || 'General', section:''};
  const input=document.getElementById('equipmentPackageInput');
  if(input){
    input.dataset.category = pendingEquipmentUpload;
@@ -294,6 +296,52 @@ function equipmentPackageSelected(input){
    return;
  }
  alert(category + ' manual-package processing is being enabled. Individual document upload is already available.');
+}
+
+function pressurePartsPage(){
+ renderTabs();
+ document.getElementById('view').innerHTML=`<div class="card">
+   <span class="badge">CFBC Boiler</span>
+   <h2>Pressure Parts</h2>
+   <p class="muted">Upload all boiler pressure-parts manuals, drawings, datasheets, inspection records and maintenance documents here.</p>
+   ${admin?`<div class="equipment-uploadbar">
+     <div>
+       <b>CFBC Boiler → Pressure Parts</b>
+       <div class="muted small">These files will be tagged to the Pressure Parts section for more accurate search.</div>
+     </div>
+     <div class="actions">
+       <button onclick="openPressurePartsUpload()">Upload Documents</button>
+       <button class="primary" onclick="openPressurePartsPackagePicker()">Upload Manual Package (.zip)</button>
+     </div>
+     <input id="pressurePartsPackageInput" type="file" accept=".zip,application/zip" hidden onchange="pressurePartsPackageSelected(this)">
+   </div>`:''}
+   <div class="notice"><b>Search behavior:</b> panel/coil/header/tube names will search Pressure Parts documents first, then other CFBC Boiler documents.</div>
+ </div>`;
+}
+
+function openPressurePartsUpload(){
+ window.pp360UploadContext={category:'CFBC Boiler', section:'Pressure Parts'};
+ show('Admin');
+ setTimeout(()=>{
+   const input=document.getElementById('file');
+   if(input) input.click();
+ },120);
+}
+
+function openPressurePartsPackagePicker(){
+ window.pp360UploadContext={category:'CFBC Boiler', section:'Pressure Parts'};
+ const input=document.getElementById('pressurePartsPackageInput');
+ if(input) input.click();
+}
+
+function pressurePartsPackageSelected(input){
+ const file=input?.files?.[0];
+ if(!file) return;
+ if(typeof window.handleEquipmentPackageUpload==='function'){
+   window.handleEquipmentPackageUpload(file,'CFBC Boiler','Pressure Parts');
+   return;
+ }
+ alert('Pressure Parts package processing is being enabled. Individual document upload is already available.');
 }
 
 function equipmentAction(e,b){
