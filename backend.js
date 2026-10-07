@@ -2284,14 +2284,25 @@
     const isWeb = payload?.source_type === 'web';
     const isParameterWeb = isWeb && payload?.display_mode === 'parameter_lines';
 
-    const cleanedLines = lines.map(line => String(line || '')
+    let cleanedLines = lines.map(line => String(line || '')
       .replace(/【[^】]+】/g,'')
       .replace(/\[(?:source\s*)?\d+\]/gi,'')
       .replace(/\((?:source\s*)?\d+\)/gi,'')
       .replace(/[\uE000-\uF8FF]/g,'')
+      .replace(/\(\s*\)/g,'')
       .replace(/\s+0\s*$/g,'')
       .replace(/\s+/g,' ')
       .trim()).filter(Boolean);
+
+    if (isParameterWeb && cleanedLines.length) {
+      cleanedLines = cleanedLines
+        .join(' ')
+        .replace(/\s+0\s+(?=(?:SO₂\s*\/\s*SOx|SO₂|SO2|SOx|NOx|NO₂|NO2|PM|Applicability)\s*:)/gi,'\n')
+        .replace(/\s+(?=(?:SO₂\s*\/\s*SOx|SO₂|SO2|SOx|NOx|NO₂|NO2|PM|Applicability)\s*:)/gi,'\n')
+        .split(/\n+/)
+        .map(x => x.replace(/\(\s*\)/g,'').replace(/\s+/g,' ').trim())
+        .filter(Boolean);
+    }
 
     const onlineLine = cleanedLines.join(' ').trim();
 
