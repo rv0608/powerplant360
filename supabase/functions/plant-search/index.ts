@@ -142,7 +142,8 @@ Rules:
 
   if (!res.ok) {
     const t = await res.text();
-    throw new Error(`Web search failed (${res.status}): ${t.slice(0,300)}`);
+    console.error("Plant AI web search failed", res.status, t.slice(0,800));
+    throw new Error(`Web search failed (${res.status}): ${t.slice(0,500)}`);
   }
 
   const payload = await res.json();
@@ -314,7 +315,8 @@ source_indices must contain only the source numbers that directly support the an
 
     if (!aiRes.ok) {
       const t = await aiRes.text();
-      throw new Error(`AI request failed (${aiRes.status}): ${t.slice(0,300)}`);
+      console.error("Plant AI OpenAI request failed", aiRes.status, t.slice(0,800));
+      throw new Error(`AI request failed (${aiRes.status}): ${t.slice(0,500)}`);
     }
 
     const ai = await aiRes.json();
@@ -361,6 +363,7 @@ source_indices must contain only the source numbers that directly support the an
       headers:{ ...corsHeaders, "Content-Type":"application/json" }
     });
   } catch (err) {
+    console.error("plant-search error", String(err?.message || err).slice(0,1000));
     return new Response(JSON.stringify({ error:String(err?.message || err) }), {
       status:500,
       headers:{ ...corsHeaders, "Content-Type":"application/json" }
