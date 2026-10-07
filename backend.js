@@ -73,9 +73,11 @@
     return norm(q).split(' ').filter(w => w.length >= 2);
   }
 
-  function pageMatches(pageText, tokens) {
+  function pageMatches(pageText, tokens, rawQuery='') {
     const t = pageText.toLowerCase();
     let score = 0;
+    const phrase = norm(rawQuery);
+    if (phrase.length > 2 && t.includes(phrase)) score += 40;
     for (const token of tokens) {
       const n = t.split(token).length - 1;
       if (n > 0) score += Math.min(n, 8);
@@ -116,7 +118,7 @@
       for (let i = 1; i < parts.length; i += 2) {
         const pageNo = Number(parts[i]);
         const text = parts[i + 1] || '';
-        const score = pageMatches(text, tokens);
+        const score = pageMatches(text, tokens, q);
         if (score > 0) {
           hits.push({
             score,
@@ -133,27 +135,32 @@
   }
 
   function renderPrivateHits(q, hits) {
-    const cards = hits.map((h, i) => `
-      <div class="sourcehit">
-        <div class="answerhead">
-          <span class="badge">${esc(h.category || 'Plant document')}</span>
-          <span class="confidence">${esc(h.file_name)} • Page ${h.page}</span>
-        </div>
-        <p>${esc(makeSnippet(h.text, queryTokens(q)))}</p>
-      </div>`).join('');
+    const tokens = queryTokens(q);
+    const best = hits[0];
+    const bestSnippet = makeSnippet(best.text, tokens);
+    const otherHits = hits.slice(1).map(h => `
+      <details class="sourcehit">
+        <summary><b>${esc(h.file_name)}</b> • Page ${h.page}</summary>
+        <p>${esc(makeSnippet(h.text, tokens))}</p>
+      </details>`).join('');
 
     return `<div class="card result">
       <div class="answerhead">
-        <span class="badge ok">Plant document result</span>
-        <span class="confidence">${hits.length} relevant page${hits.length===1?'':'s'} found</span>
+        <span class="badge ok">Plant-specific document result</span>
+        <span class="confidence">Source reference shown</span>
       </div>
       <h2>${esc(q)}</h2>
-      <div class="quickanswer">
-        <b>Simple answer</b>
-        <p>I found this information in your uploaded plant documents. The most relevant pages are shown below so you can verify the original source.</p>
+      <div class="plantanswer">
+        <div class="plantanswer-title">Best matching information</div>
+        <p>${esc(bestSnippet)}</p>
       </div>
-      ${cards}
-      <div class="sourcebox"><b>Note:</b> This Lite search retrieves matching passages. Structured AI summarization of equipment data will be added in the next step.</div>
+      <div class="sourcebox">
+        <b>Source:</b> ${esc(best.file_name)}<br>
+        <b>Page:</b> ${best.page}<br>
+        <b>Section:</b> ${esc(best.category || 'Plant document')} • ${esc(best.document_type || 'Document')}
+      </div>
+      ${otherHits ? `<h3>Other relevant pages</h3><div class="relatedhits">${otherHits}</div>` : ''}
+      <div class="notice"><b>Important:</b> Verify critical operating, alarm and trip values against the approved current revision before field use.</div>
     </div>`;
   }
 
