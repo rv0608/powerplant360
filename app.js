@@ -287,15 +287,36 @@ function openEquipmentPackagePicker(e){
  }
 }
 
-function equipmentPackageSelected(input){
+async function ensurePackageUploader(){
+ if(typeof window.handleEquipmentPackageUpload==='function') return true;
+ await new Promise(r=>setTimeout(r,600));
+ if(typeof window.handleEquipmentPackageUpload==='function') return true;
+ try{
+   if('serviceWorker' in navigator){
+     const rs=await navigator.serviceWorker.getRegistrations();
+     await Promise.all(rs.map(r=>r.unregister()));
+   }
+   if('caches' in window){
+     const keys=await caches.keys();
+     await Promise.all(keys.map(k=>caches.delete(k)));
+   }
+ }catch(e){}
+ return false;
+}
+
+async function equipmentPackageSelected(input){
  const file=input?.files?.[0];
  if(!file) return;
  const category=input.dataset.category || pendingEquipmentUpload || 'General';
- if(typeof window.handleEquipmentPackageUpload==='function'){
+ if(await ensurePackageUploader()){
    window.handleEquipmentPackageUpload(file, category);
    return;
  }
- alert(category + ' manual-package processing is being enabled. Individual document upload is already available.');
+ alert('PowerPlant360 needs one automatic refresh to load the ZIP uploader. The page will reload now; then select the ZIP again.');
+ const u=new URL(window.location.href);
+ u.searchParams.set('build','24');
+ u.searchParams.set('reload',Date.now().toString());
+ window.location.replace(u.toString());
 }
 
 function pressurePartsPage(){
@@ -334,14 +355,18 @@ function openPressurePartsPackagePicker(){
  if(input) input.click();
 }
 
-function pressurePartsPackageSelected(input){
+async function pressurePartsPackageSelected(input){
  const file=input?.files?.[0];
  if(!file) return;
- if(typeof window.handleEquipmentPackageUpload==='function'){
+ if(await ensurePackageUploader()){
    window.handleEquipmentPackageUpload(file,'CFBC Boiler','Pressure Parts');
    return;
  }
- alert('Pressure Parts package processing is being enabled. Individual document upload is already available.');
+ alert('PowerPlant360 needs one automatic refresh to load the ZIP uploader. The page will reload now; then select the ZIP again.');
+ const u=new URL(window.location.href);
+ u.searchParams.set('build','24');
+ u.searchParams.set('reload',Date.now().toString());
+ window.location.replace(u.toString());
 }
 
 function equipmentAction(e,b){
