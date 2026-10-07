@@ -426,6 +426,75 @@
     return null;
   }
 
+  function explicitBedMaterialDensity(q, documents) {
+    const nq = norm(q);
+    if (!/bed material/.test(nq) || !/density|bulk density/.test(nq)) return null;
+
+    const patterns = [
+      /bed\s+material.{0,120}?(?:bulk\s+)?density\s*[:=\-]?\s*([0-9][0-9., ]*(?:kg\/?m3|kg\/?m\^3|kg\s*\/\s*m3|kg\s*\/\s*m³|t\/?m3|g\/?cc)?)/i,
+      /(?:bulk\s+)?density\s*[:=\-]?\s*([0-9][0-9., ]*(?:kg\/?m3|kg\/?m\^3|kg\s*\/\s*m3|kg\s*\/\s*m³|t\/?m3|g\/?cc)?).{0,120}?bed\s+material/i
+    ];
+
+    let fallbackDoc = null;
+
+    for (const d of documents || []) {
+      if (norm(d.category || '') !== 'cfbc boiler') continue;
+
+      const metaHay = norm([
+        d.file_name,
+        d.document_type,
+        (d.metadata && d.metadata.section) || '',
+        (d.metadata && d.metadata.source_path) || ''
+      ].join(' '));
+
+      // Keep a sensible reference document in case the value isn't extractable.
+      if (!fallbackDoc && /design specification|technical data|specification|operation|description/.test(metaHay)) {
+        fallbackDoc = d;
+      }
+
+      const raw = String(d.extracted_text || '').replace(/\s+/g,' ').trim();
+      if (!raw || !/bed\s+material/i.test(raw)) continue;
+
+      for (const re of patterns) {
+        const m = raw.match(re);
+        if (!m) continue;
+        const value = (m[1] || '').trim().replace(/\s+/g,' ');
+        if (!value) continue;
+
+        return {
+          answer:'Bed Material Density : ' + value,
+          id:d.id,
+          storage_path:d.storage_path,
+          file_name:d.file_name,
+          category:d.category,
+          document_type:d.document_type
+        };
+      }
+
+      if (!fallbackDoc) fallbackDoc = d;
+    }
+
+    if (fallbackDoc) {
+      return {
+        answer:'Bed Material Density : Exact value not found in searchable text. Open the related Boiler technical document.',
+        id:fallbackDoc.id,
+        storage_path:fallbackDoc.storage_path,
+        file_name:fallbackDoc.file_name,
+        category:fallbackDoc.category,
+        document_type:fallbackDoc.document_type
+      };
+    }
+
+    return {
+      answer:'Bed Material Density : No exact plant-document match found.',
+      id:null,
+      storage_path:null,
+      file_name:'',
+      category:'CFBC Boiler',
+      document_type:''
+    };
+  }
+
   async function searchPrivateDocuments(q) {
     if (!backendSession || !client()) return [];
     const { data, error } = await client()
@@ -437,6 +506,26 @@
 
     const tokens = queryTokens(q);
     if (!tokens.length) return [];
+
+    const bedDensity = explicitBedMaterialDensity(q, data);
+    if (bedDensity) {
+      return [{
+        score:100000,
+        direct_answer:bedDensity.answer,
+        id:bedDensity.id,
+        storage_path:bedDensity.storage_path,
+        file_name:bedDensity.file_name,
+        page:null,
+        text:'',
+        category:bedDensity.category,
+        document_type:bedDensity.document_type,
+        section:'Technical Data',
+        source_path:'',
+        detail_matched:1,
+        detail_total:1,
+        detail_ratio:1
+      }];
+    }
 
     const exactEquipment = exactEquipmentQuery(q);
     if (exactEquipment) {
