@@ -1581,6 +1581,7 @@
         <h2>Authorized User</h2>
         <p>You are signed in, but this account does not have Admin upload/delete permission.</p>
         <div class="admin-actions">
+          <button onclick="toggleApiUsage()">AI Usage</button>
           <button onclick="hardRefreshPP360()" title="Hard Refresh" aria-label="Hard Refresh">↻</button>
           <button onclick="logout()">Logout</button>
         </div>
@@ -1620,7 +1621,9 @@
       <div class="notice"><b>Real backend enabled:</b> files are stored privately in Supabase Storage and metadata is stored in the database. The progress bar shows actual network upload progress.</div>
 
       <div id="storageUsage" class="storage-usage"><div class="muted small">Storage monitor loading…</div></div>
-      <div id="apiUsage" class="storage-usage"><div class="muted small">API usage & cost loading…</div></div>
+      <div id="apiUsageWrap" style="display:none">
+        <div id="apiUsage" class="storage-usage"><div class="muted small">API usage & cost loading…</div></div>
+      </div>
 
       <div class="doc-toolbar">
         <div>
@@ -1649,7 +1652,6 @@
 
     setupDropZone();
     await loadDocsFromBackend();
-    await loadApiUsage();
   };
 
   login = async function () {
@@ -1996,6 +1998,15 @@
     docs = data || [];
     renderDocTable();
   }
+
+  window.toggleApiUsage = async function () {
+    if (backendRole !== 'admin') return;
+    const wrap = document.getElementById('apiUsageWrap');
+    if (!wrap) return;
+    const opening = wrap.style.display === 'none' || !wrap.style.display;
+    wrap.style.display = opening ? 'block' : 'none';
+    if (opening) await loadApiUsage();
+  };
 
   async function loadApiUsage() {
     const el = document.getElementById('apiUsage');
