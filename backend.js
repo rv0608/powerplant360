@@ -1624,7 +1624,6 @@
           <p class="muted">Signed in as ${esc(backendSession.user.email || 'Admin')}</p>
         </div>
         <div class="admin-actions">
-          <button class="primary" onclick="toggleApiUsage()">AI Usage & Cost</button>
           <button onclick="hardRefreshPP360()" title="Hard Refresh" aria-label="Hard Refresh">↻</button>
           <button onclick="logout()">Logout</button>
         </div>
@@ -1646,9 +1645,7 @@
       <div class="notice"><b>Real backend enabled:</b> files are stored privately in Supabase Storage and metadata is stored in the database. The progress bar shows actual network upload progress.</div>
 
       <div id="storageUsage" class="storage-usage"><div class="muted small">Storage monitor loading…</div></div>
-      <div id="apiUsageWrap" style="display:none">
-        <div id="apiUsage" class="storage-usage"><div class="muted small">API usage & cost loading…</div></div>
-      </div>
+      <div id="apiUsage" class="storage-usage"><div class="muted small">AI Usage & Cost loading…</div></div>
 
       <div class="doc-toolbar">
         <div>
@@ -1677,6 +1674,7 @@
 
     setupDropZone();
     await loadDocsFromBackend();
+    await loadApiUsage();
   };
 
   login = async function () {
