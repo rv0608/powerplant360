@@ -206,3 +206,10 @@ details p{margin:9px 0 2px;line-height:1.55}
 
 .header-actions{display:flex;align-items:center;gap:8px}
 .header-actions button{min-width:40px}
+
+
+.multi-answer{display:flex;flex-direction:column;gap:8px}
+.multi-answer-row{display:flex;justify-content:space-between;gap:18px;padding:8px 0;border-bottom:1px solid #edf1f5}
+.multi-answer-row:last-child{border-bottom:0}
+.multi-answer-row span{font-weight:600}
+@media (max-width:640px){.multi-answer-row{flex-direction:column;gap:3px}}
