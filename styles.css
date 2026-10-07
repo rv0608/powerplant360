@@ -218,3 +218,11 @@ details p{margin:9px 0 2px;line-height:1.55}
 .simple-answer-lines{display:flex;flex-direction:column;gap:7px;font-weight:700}
 .simple-answer-lines>div{padding:5px 0;border-bottom:1px solid #edf1f5}
 .simple-answer-lines>div:last-child{border-bottom:0}
+
+
+.search-ai{display:grid;grid-template-columns:minmax(140px,190px) minmax(0,1fr) auto;gap:8px;align-items:center}
+.search-ai select{height:48px;border-radius:12px;border:0;padding:0 12px;background:#fff}
+.search-ai input{min-width:0}
+.search-ai button{white-space:nowrap}
+.ai-answer-badge{display:inline-block;font-size:12px;font-weight:700;padding:4px 8px;margin-bottom:10px;border-radius:999px;background:#e8f2ff;color:#0b4f8a}
+@media (max-width:720px){.search-ai{grid-template-columns:1fr}.search-ai select,.search-ai input,.search-ai button{width:100%}}
