@@ -160,10 +160,10 @@ Rules:
 - Never claim an online value is this plant's actual value.
 - If the question asks for a plant-specific make, model, setting, rating, serial number, exact design value, or exact operating limit, state that the plant-specific value is not verified and then give only useful general context if available.
 - Prefer manufacturer/OEM documentation, standards bodies, government/academic sources, and established engineering references.
-- Keep the answer concise.
-- One requested value or fact: one clean line.
-- Multiple points/specifications: one point per line.
-- Do not output markdown tables.
+- Return exactly ONE concise plain-text line that directly answers the question.
+- Do not use bullets, markdown, headings, bold markers, tables, inline URLs, or source names in the answer text.
+- Keep the line practical and normally under 35 words.
+- Source links will be shown separately by the app.
 `.trim();
 
   const res = await fetch("https://api.openai.com/v1/responses", {
@@ -189,13 +189,15 @@ Rules:
 
   const payload = await res.json();
   const answer = extractResponseText(payload).trim();
-  const answerLines = answer
-    .split(/\n+/)
-    .map((x:string) => x.replace(/^[-•*]\s*/, "").trim())
-    .filter(Boolean);
+  const cleanLine = answer
+    .replace(/\[[^\]]+\]\([^\)]+\)/g, "")
+    .replace(/https?:\/\/\S+/g, "")
+    .replace(/[\*_#>~-]+/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
 
   return {
-    answer_lines: answerLines.length ? answerLines : ["No reliable online reference found."],
+    answer_lines: [cleanLine || "No reliable online reference found."],
     sources: [],
     web_sources: collectWebSources(payload),
     source_type: "web",
