@@ -1620,6 +1620,7 @@
       <div class="notice"><b>Real backend enabled:</b> files are stored privately in Supabase Storage and metadata is stored in the database. The progress bar shows actual network upload progress.</div>
 
       <div id="storageUsage" class="storage-usage"><div class="muted small">Storage monitor loading…</div></div>
+      <div id="apiUsage" class="storage-usage"><div class="muted small">API usage & cost loading…</div></div>
 
       <div class="doc-toolbar">
         <div>
@@ -1648,6 +1649,7 @@
 
     setupDropZone();
     await loadDocsFromBackend();
+    await loadApiUsage();
   };
 
   login = async function () {
@@ -1993,6 +1995,56 @@
 
     docs = data || [];
     renderDocTable();
+  }
+
+  async function loadApiUsage() {
+    const el = document.getElementById('apiUsage');
+    if (!el || !client()) return;
+
+    const { data, error } = await client()
+      .from('api_usage')
+      .select('created_at,source_type,model,input_tokens,cached_input_tokens,output_tokens,web_search_calls,estimated_cost_usd')
+      .order('created_at', { ascending:false });
+
+    if (error) {
+      el.innerHTML = '<div class="notice">Could not load API usage: ' + esc(error.message) + '</div>';
+      return;
+    }
+
+    const rows = data || [];
+    const totals = rows.reduce((a,r) => {
+      a.input += Number(r.input_tokens || 0);
+      a.cached += Number(r.cached_input_tokens || 0);
+      a.output += Number(r.output_tokens || 0);
+      a.web += Number(r.web_search_calls || 0);
+      a.cost += Number(r.estimated_cost_usd || 0);
+      if (r.source_type === 'web') a.webAnswers += 1;
+      else a.plantAnswers += 1;
+      return a;
+    }, {input:0,cached:0,output:0,web:0,cost:0,webAnswers:0,plantAnswers:0});
+
+    const startingCredit = 5.00;
+    const remaining = Math.max(0, startingCredit - totals.cost);
+    const spentPct = Math.min(100, (totals.cost / startingCredit) * 100);
+    const money = n => '$' + Number(n || 0).toFixed(n < 0.01 ? 4 : 2);
+    const num = n => Number(n || 0).toLocaleString();
+
+    el.innerHTML = `
+      <div class="usage-title"><h3>Plant AI Usage & Estimated Cost</h3><span class="usage-plan">OpenAI API • tracking from this feature onward</span></div>
+      <div class="usage-grid">
+        <div class="usage-card"><span>AI Requests</span><strong>${num(rows.length)}</strong><small>${num(totals.plantAnswers)} plant • ${num(totals.webAnswers)} online</small></div>
+        <div class="usage-card"><span>Input Tokens</span><strong>${num(totals.input)}</strong><small>${num(totals.cached)} cached</small></div>
+        <div class="usage-card"><span>Output Tokens</span><strong>${num(totals.output)}</strong><small>generated answers</small></div>
+        <div class="usage-card"><span>Web Searches</span><strong>${num(totals.web)}</strong><small>online fallback calls</small></div>
+        <div class="usage-card">
+          <span>Estimated Spend</span><strong>${money(totals.cost)}</strong>
+          <div class="usage-track"><div class="usage-fill ${spentPct >= 90 ? 'danger' : spentPct >= 75 ? 'warn' : 'good'}" style="width:${spentPct.toFixed(2)}%"></div></div>
+          <small>${spentPct.toFixed(2)}% of $5 starting credit</small>
+        </div>
+        <div class="usage-card"><span>Estimated Remaining</span><strong>${money(remaining)}</strong><small>OpenAI Billing is authoritative</small></div>
+      </div>
+      <p class="muted small">Estimated using GPT-6 Luna reference rates: $0.10/M uncached input, $0.01/M cached input, $0.50/M output, plus $0.01 per web-search call. Actual charges can differ by processing mode or pricing changes.</p>
+    `;
   }
 
   function renderStorageUsage() {
