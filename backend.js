@@ -187,17 +187,80 @@
     return snippet.length > 160 ? snippet.slice(0,160) + '…' : snippet;
   }
 
-  function renderPrivateHits(q, hits) {
-    let answer = '';
+  function contextualFieldAnswer(q, hits) {
+    const nq = norm(q);
+    const defs = [
+      {terms:['make','manufacturer','oem'], labels:['Make','Manufacturer','OEM']},
+      {terms:['model','type'], labels:['Model','Type']},
+      {terms:['speed','rpm'], labels:['Rated Speed','Speed']},
+      {terms:['pressure'], labels:['Rated Pressure','Design Pressure','Inlet Steam Pressure','Pressure']},
+      {terms:['temperature','temp'], labels:['Rated Temperature','Design Temperature','Inlet Steam Temperature','Temperature','Temp']},
+      {terms:['capacity','flow'], labels:['Rated Capacity','Capacity','Flow']},
+      {terms:['output','power','rating'], labels:['Rated Output','Output','Rated Power','Power','Rating']},
+      {terms:['current','amps','amp'], labels:['Rated Current','Current','Amps']},
+      {terms:['voltage','volt'], labels:['Rated Voltage','Voltage']},
+      {terms:['frequency','hz'], labels:['Frequency']},
+      {terms:['head'], labels:['Rated Head','Head']},
+      {terms:['efficiency'], labels:['Efficiency']},
+      {terms:['npsh','npshr'], labels:['NPSHr','NPSH']},
+      {terms:['diameter','dia'], labels:['Diameter','Dia']},
+      {terms:['material'], labels:['Material']},
+      {terms:['serial','sr no','sr number'], labels:['Sr. Number','Serial Number','Sr No']}
+    ];
+    const def = defs.find(d => d.terms.some(t => nq.includes(t)));
+    if (!def) return '';
+
+    const stop = new Set(['what','is','the','of','for','data','value','details','detail','rated','show','give','please']);
+    def.terms.forEach(t => t.split(' ').forEach(w => stop.add(w)));
+    const subjects = nq.split(' ').filter(w => w.length > 2 && !stop.has(w));
+
+    const allLabels = defs.flatMap(d=>d.labels).sort((a,b)=>b.length-a.length);
+    const escRe = v => v.replace(/[.*+?^()|[\]\\]/g,'\\$&');
+    const stopAlt = allLabels.map(escRe).join('|');
+
+    let best = null;
     for (const hit of hits) {
-      const candidate = oneLineFromHit(q, hit);
-      if (candidate && candidate.includes(' : ')) {
-        answer = candidate;
-        break;
+      const text = (hit.text || '').replace(/\s+/g,' ').trim();
+      const lower = text.toLowerCase();
+      for (const label of def.labels) {
+        const re = new RegExp('\\b' + escRe(label) + '\\s*[:=\\-]?\\s*(.{1,90}?)(?=\\s+(?:' + stopAlt + ')\\s*[:=\\-]?|$)','ig');
+        let m;
+        while ((m = re.exec(text)) !== null) {
+          let value = (m[1] || '').trim().replace(/[.,;]+$/,'').trim();
+          if (!value || value.length > 70) continue;
+          let score = Number(hit.score || 0);
+          const idx = m.index;
+          const before = lower.slice(Math.max(0, idx - 350), idx);
+          const around = lower.slice(Math.max(0, idx - 180), Math.min(lower.length, idx + 180));
+          for (const subject of subjects) {
+            if (around.includes(subject)) score += 45;
+            else if (before.includes(subject)) score += 20;
+            else if (lower.includes(subject)) score += 5;
+            if (lower.includes(subject + ' specifications') || lower.includes(subject + ' specification')) score += 80;
+            if (norm(hit.category || '').includes(subject)) score += 15;
+          }
+          if (label === def.labels[0]) score += 5;
+          if (!best || score > best.score) best = {score, label, value};
+        }
+      }
+    }
+    if (!best) return '';
+
+    if (def.terms.includes('model') || def.terms.includes('type')) {
+      const subject = subjects.length ? subjects.map(w=>w.charAt(0).toUpperCase()+w.slice(1)).join(' ') + ' ' : '';
+      return subject + 'Model : ' + best.value;
+    }
+    return best.label + ' : ' + best.value;
+  }
+  function renderPrivateHits(q, hits) {
+    let answer = contextualFieldAnswer(q, hits);
+    if (!answer) {
+      for (const hit of hits) {
+        const candidate = oneLineFromHit(q, hit);
+        if (candidate && candidate.includes(' : ')) { answer = candidate; break; }
       }
     }
     if (!answer) answer = oneLineFromHit(q, hits[0]);
-
     return '<div class="card result compactresult"><div class="onelineanswer"><b>' + esc(answer) + '</b></div></div>';
   }
 
