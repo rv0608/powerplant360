@@ -2282,25 +2282,33 @@
       : String(payload?.answer || '').split(/\n+/).map(x=>x.trim()).filter(Boolean);
 
     const isWeb = payload?.source_type === 'web';
-    const onlineLine = lines.join(' ')
+    const isParameterWeb = isWeb && payload?.display_mode === 'parameter_lines';
+
+    const cleanedLines = lines.map(line => String(line || '')
       .replace(/【[^】]+】/g,'')
       .replace(/\[(?:source\s*)?\d+\]/gi,'')
       .replace(/\((?:source\s*)?\d+\)/gi,'')
       .replace(/[\uE000-\uF8FF]/g,'')
       .replace(/\s+0\s*$/g,'')
       .replace(/\s+/g,' ')
-      .trim();
+      .trim()).filter(Boolean);
 
-    const lineHtml = isWeb
-      ? '<div class="onelineanswer"><b>' + esc(onlineLine || 'No reliable online reference found.') + '</b></div>'
-      : (lines.length
-          ? '<div class="multi-answer">' + lines.map(line => {
-              const m = line.match(/^([^:]{1,80})\s*:\s*(.+)$/);
-              return m
-                ? '<div class="multi-answer-row"><span>' + esc(m[1]) + '</span><b>' + esc(m[2]) + '</b></div>'
-                : '<div class="simple-answer-lines"><div>' + esc(line) + '</div></div>';
-            }).join('') + '</div>'
-          : '<div class="onelineanswer"><b>No verified answer found.</b></div>');
+    const onlineLine = cleanedLines.join(' ').trim();
+
+    const rowHtml = cleanedLines.length
+      ? '<div class="multi-answer">' + cleanedLines.map(line => {
+          const m = line.match(/^([^:]{1,80})\s*:\s*(.+)$/);
+          return m
+            ? '<div class="multi-answer-row"><span>' + esc(m[1]) + '</span><b>' + esc(m[2]) + '</b></div>'
+            : '<div class="simple-answer-lines"><div>' + esc(line) + '</div></div>';
+        }).join('') + '</div>'
+      : '<div class="onelineanswer"><b>No verified answer found.</b></div>';
+
+    const lineHtml = isParameterWeb
+      ? rowHtml
+      : (isWeb
+          ? '<div class="onelineanswer"><b>' + esc(onlineLine || 'No reliable online reference found.') + '</b></div>'
+          : rowHtml);
 
     const seen = new Set();
     const buttons = [];
