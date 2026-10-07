@@ -150,7 +150,7 @@
         if (!m) continue;
 
         let vendor = (m[1] || '').trim()
-          .replace(/[,:;.-]+$/,'')
+          .replace(/^[^A-Za-z0-9]+/,'').replace(/[,:;.-]+$/,'')
           .replace(/\s+/g,' ')
           .trim();
 
