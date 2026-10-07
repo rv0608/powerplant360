@@ -349,7 +349,10 @@
           <h2>Admin Document Manager</h2>
           <p class="muted">Signed in as ${esc(backendSession.user.email || 'Admin')}</p>
         </div>
-        <button onclick="logout()">Logout</button>
+        <div class="admin-actions">
+          <button onclick="hardRefreshPP360()">Hard Refresh</button>
+          <button onclick="logout()">Logout</button>
+        </div>
       </div>
 
       <div id="dropZone" class="dropzone" tabindex="0">
