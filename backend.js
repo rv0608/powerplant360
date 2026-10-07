@@ -462,7 +462,7 @@
     });
   };
 
-  async function uploadRealFile(file, id) {
+  async function uploadRealFile(file, id, options = {}) {
     const bar = document.getElementById(id + '_bar');
     const pct = document.getElementById(id + '_pct');
     const status = document.getElementById(id + '_status');
@@ -516,7 +516,8 @@
         uploaded_by: s.user.id,
         metadata: {
           original_name: file.name,
-          section: (window.pp360UploadContext && window.pp360UploadContext.section) || ''
+          section: (window.pp360UploadContext && window.pp360UploadContext.section) || '',
+          source_path: (window.pp360UploadContext && window.pp360UploadContext.sourcePath) || ''
         }
       }).select('id').single();
 
@@ -547,6 +548,7 @@
             metadata: {
               original_name: file.name,
               section: (window.pp360UploadContext && window.pp360UploadContext.section) || '',
+              source_path: (window.pp360UploadContext && window.pp360UploadContext.sourcePath) || '',
               extraction_error: String(extractErr.message || extractErr)
             }
           }).eq('id', insertedRows.id);
@@ -556,13 +558,135 @@
         status.innerHTML = '<span class="oktext">✓ Secure upload completed</span>';
       }
 
-      await loadDocsFromBackend();
+      if (!options.suppressReload) await loadDocsFromBackend();
+      return true;
     } catch (err) {
       bar.classList.add('errorbar');
       pct.textContent = 'Error';
       status.innerHTML = '<span class="errtext">✕ ' + esc(err.message || String(err)) + '</span>';
+      return false;
     }
   }
+
+
+  function packageMimeType(name) {
+    const ext = (name.split('.').pop() || '').toLowerCase();
+    const map = {
+      pdf:'application/pdf',
+      doc:'application/msword',
+      docx:'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      xls:'application/vnd.ms-excel',
+      xlsx:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      csv:'text/csv',
+      txt:'text/plain',
+      png:'image/png',
+      jpg:'image/jpeg',
+      jpeg:'image/jpeg',
+      html:'text/html',
+      htm:'text/html'
+    };
+    return map[ext] || 'application/octet-stream';
+  }
+
+  function inferPackageSection(path, fallbackSection='') {
+    if (fallbackSection) return fallbackSection;
+    const p = norm(path);
+    if (/pressure[ -]?part|superheater|economi[sz]er|evaporator|water wall|steam drum|header|downcomer|riser/.test(p)) return 'Pressure Parts';
+    if (/drawing|p&id|pid|ga |layout|diagram/.test(p)) return 'Drawings & P&IDs';
+    if (/interlock|permissive|logic|bms|plc|cause effect/.test(p)) return 'Interlocks & Logic';
+    if (/e ?& ?i|electrical|instrument|transmitter|sensor|switch|cable|mcc|vfd/.test(p)) return 'Electrical & C&I';
+    if (/vendor|fan|pump|valve|feeder|motor|actuator|burner|esp|cems|swas/.test(p)) return 'Vendor Manuals / Auxiliaries';
+    if (/operation|startup|shutdown|loading/.test(p)) return 'Operation';
+    if (/maintenance|maintainance|lubrication|spare/.test(p)) return 'Maintenance';
+    if (/design|specification|technical data|datasheet/.test(p)) return 'Technical Data';
+    if (/description/.test(p)) return 'Description';
+    return 'General';
+  }
+
+  window.handleEquipmentPackageUpload = async function(zipFile, category='General', fixedSection='') {
+    if (!window.JSZip) {
+      alert('ZIP reader is not loaded. Please use Hard Refresh and try again.');
+      return;
+    }
+    if (!backendSession || backendRole !== 'admin') {
+      alert('Please sign in as Admin before uploading a manual package.');
+      return;
+    }
+
+    const v = document.getElementById('view');
+    if (!v) return;
+    v.innerHTML = `<div class="card">
+      <span class="badge">${esc(category)}</span>
+      <h2>Manual Package Upload</h2>
+      <div class="notice">The ZIP stays on this computer. PowerPlant360 extracts supported documents locally and uploads the individual files securely.</div>
+      <div id="packageSummary" class="uploaditem">
+        <div class="uploadrow"><div><b>${esc(zipFile.name)}</b><div class="muted small">${formatBytes(zipFile.size)}</div></div><div id="pkgPct">0%</div></div>
+        <div class="progress"><div id="pkgBar" class="progressbar" style="width:0%"></div></div>
+        <div id="pkgStatus" class="uploadstatus muted">Reading ZIP package…</div>
+      </div>
+      <div id="packageCurrent"></div>
+    </div>`;
+
+    const pkgBar=document.getElementById('pkgBar');
+    const pkgPct=document.getElementById('pkgPct');
+    const pkgStatus=document.getElementById('pkgStatus');
+    const current=document.getElementById('packageCurrent');
+
+    try {
+      const zip = await JSZip.loadAsync(zipFile);
+      const allowed = new Set(['pdf','doc','docx','xls','xlsx','csv','txt','png','jpg','jpeg','html','htm']);
+      const entries = Object.values(zip.files).filter(z => {
+        if (z.dir) return false;
+        const n=z.name || '';
+        if (n.includes('__MACOSX/') || /(^|\/)\./.test(n)) return false;
+        const ext=(n.split('.').pop() || '').toLowerCase();
+        return allowed.has(ext);
+      });
+
+      if (!entries.length) throw new Error('No supported documents were found inside this ZIP.');
+
+      let ok=0, failed=0;
+      pkgStatus.textContent = entries.length + ' supported files found. Starting secure upload…';
+
+      for (let i=0;i<entries.length;i++) {
+        const entry=entries[i];
+        const baseName=(entry.name.split('/').pop() || ('file-'+(i+1))).trim();
+        const section=inferPackageSection(entry.name, fixedSection);
+        const blob=await entry.async('blob');
+        const file=new File([blob],baseName,{type:packageMimeType(baseName),lastModified:Date.now()});
+
+        const itemId='pkg_current_file';
+        current.innerHTML=`
+          <div class="uploaditem" id="${itemId}">
+            <div class="uploadrow">
+              <div><b>${esc(baseName)}</b><div class="muted small">${esc(section)} • ${esc(entry.name)}</div></div>
+              <div class="uploadpct" id="${itemId}_pct">0%</div>
+            </div>
+            <div class="progress"><div class="progressbar" id="${itemId}_bar" style="width:0%"></div></div>
+            <div class="uploadstatus muted" id="${itemId}_status">Preparing…</div>
+          </div>`;
+
+        window.pp360UploadContext={category,section,sourcePath:entry.name};
+        const success=await uploadRealFile(file,itemId,{suppressReload:true});
+        if(success) ok++; else failed++;
+
+        const pct=Math.round(((i+1)/entries.length)*100);
+        pkgBar.style.width=pct+'%';
+        pkgPct.textContent=pct+'%';
+        pkgStatus.textContent='Processed '+(i+1)+' of '+entries.length+' files • '+ok+' successful'+(failed?' • '+failed+' failed':'');
+      }
+
+      window.pp360UploadContext=null;
+      await loadDocsFromBackend();
+      pkgBar.style.width='100%';
+      pkgPct.textContent='100%';
+      pkgStatus.innerHTML='<span class="oktext">✓ Package completed: '+ok+' files uploaded'+(failed?' • '+failed+' failed':'')+'</span>';
+      current.innerHTML='<div class="notice"><b>Package organization complete.</b> Open Admin to review all uploaded documents, or return to the equipment page and search the indexed PDFs.</div>';
+    } catch (err) {
+      window.pp360UploadContext=null;
+      pkgStatus.innerHTML='<span class="errtext">✕ Package processing failed: '+esc(err.message || String(err))+'</span>';
+    }
+  };
 
 
   async function indexExistingPdf(id) {
