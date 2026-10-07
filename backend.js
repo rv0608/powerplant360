@@ -116,22 +116,54 @@
 
     const hits = [];
     for (const d of data) {
+      const dSection = norm((d.metadata && d.metadata.section) || '');
+      const dName = norm(d.file_name || '');
+      const dType = norm(d.document_type || '');
+      const dCategory = norm(d.category || '');
+      const qn = norm(q);
+
+      let docBoost = 0;
+      if (dCategory && qn.includes(dCategory)) docBoost += 140;
+
+      const sectionRules = [
+        {terms:['pressure part','panel','tube','coil','header','superheater','economiser','economizer','evaporator','water wall','drum','downcomer','riser'], sections:['pressure parts']},
+        {terms:['drawing','p&id','pid','ga','layout','diagram'], sections:['drawings & p&ids']},
+        {terms:['interlock','permissive','logic','bms','plc','cause effect'], sections:['interlocks & logic']},
+        {terms:['electrical','instrument','transmitter','sensor','switch','cable','mcc','vfd'], sections:['electrical & c&i']},
+        {terms:['fan','pump','valve','feeder','motor','actuator','burner','esp','cems','swas'], sections:['vendor manuals / auxiliaries']},
+        {terms:['operation','startup','shutdown','loading'], sections:['operation']},
+        {terms:['maintenance','maintainance','lubrication','spare'], sections:['maintenance']},
+        {terms:['design','specification','technical data','datasheet'], sections:['technical data']},
+        {terms:['description'], sections:['description']}
+      ];
+      for (const r of sectionRules) {
+        if (r.terms.some(t => qn.includes(t)) && r.sections.some(sec => dSection.includes(sec))) docBoost += 180;
+      }
+
+      for (const token of tokens) {
+        if (dName.includes(token)) docBoost += 22;
+        if (dType.includes(token)) docBoost += 12;
+        if (dSection.includes(token)) docBoost += 18;
+      }
       const raw = d.extracted_text || '';
       const parts = raw.split(/\[\[PAGE (\d+)\]\]\n?/g);
       for (let i = 1; i < parts.length; i += 2) {
         const pageNo = Number(parts[i]);
         const text = parts[i + 1] || '';
-        let score = pageMatches(text, tokens, q);
-        const section = norm((d.metadata && d.metadata.section) || '');
-        if (wantsPressureParts && section === 'pressure parts') score += 120;
+        let score = pageMatches(text, tokens, q) + docBoost;
+        const section = dSection;
+        if (wantsPressureParts && section === 'pressure parts') score += 180;
         if (score > 0) {
           hits.push({
             score,
+            id: d.id,
+            storage_path: d.storage_path,
             file_name: d.file_name,
             page: pageNo,
             text,
             category: d.category,
-            document_type: d.document_type
+            document_type: d.document_type,
+            section: (d.metadata && d.metadata.section) || ''
           });
         }
       }
@@ -287,7 +319,13 @@
       }
     }
     if (!answer) answer = oneLineFromHit(q, hits[0]);
-    return '<div class="card result compactresult"><div class="onelineanswer"><b>' + esc(answer) + '</b></div></div>';
+
+    const top = hits && hits[0] ? hits[0] : null;
+    const view = top && top.id
+      ? '<div class="result-actions"><button onclick="viewDocument(\'' + top.id + '\')">View related document</button></div>'
+      : '';
+
+    return '<div class="card result compactresult"><div class="onelineanswer"><b>' + esc(answer) + '</b></div>' + view + '</div>';
   }
 
   function matchesEquipmentSection(d, sectionName) {
