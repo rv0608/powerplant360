@@ -1101,6 +1101,38 @@
     }
     return best.label + ' : ' + best.value;
   }
+  function structuredMultiValueAnswer(q, hits) {
+    const nq = norm(q);
+    if (!/(heating surface|surface area|heating area)/.test(nq)) return null;
+
+    const candidates = hits || [];
+    for (const hit of candidates) {
+      const raw = String(hit.text || '').replace(/\s+/g,' ').trim();
+      if (!raw || !/heating surface|surface area/i.test(raw)) continue;
+
+      const fields = [
+        {label:'Furnace panels & enclosure panels', re:/Furnace\s+panels\s+and\s+Encl\.?\s*Panels\s*Sq\.?\s*mt\s*([0-9.,]+)/i},
+        {label:'Economizer', re:/Economi[sz]er\s*Sq\.?\s*mt\s*([0-9.,]+)/i},
+        {label:'Total evaporating heating surface', re:/Total\s+Heating\s+Surface\s*Sq\.?\s*mt\s*([0-9.,]+)/i},
+        {label:'Superheater heating surface', re:/Super\s*Heater\s+Heating\s+Surface\s+Area\s*[^0-9]{0,20}([0-9.,]+)/i}
+      ];
+
+      const rows=[];
+      for(const f of fields){
+        const m=raw.match(f.re);
+        if(m && m[1]) rows.push({label:f.label,value:m[1]+' m²'});
+      }
+
+      if(rows.length>=2){
+        return {
+          rows,
+          hit
+        };
+      }
+    }
+    return null;
+  }
+
   function cleanDisplayedAnswer(value) {
     let s = String(value || '').replace(/\s+/g,' ').trim();
 
@@ -1130,6 +1162,17 @@
 
     let answer = '';
     let answerHit = null;
+
+    const multi = structuredMultiValueAnswer(q,hits);
+    if (multi) {
+      const rows = multi.rows.map(r =>
+        '<div class="multi-answer-row"><span>' + esc(r.label) + '</span><b>' + esc(r.value) + '</b></div>'
+      ).join('');
+      const view = multi.hit && multi.hit.id
+        ? '<div class="result-actions"><button onclick="viewDocument(\'' + multi.hit.id + '\')">View related document</button></div>'
+        : '';
+      return '<div class="card result compactresult"><div class="multi-answer">' + rows + '</div>' + view + '</div>';
+    }
 
     if (hits[0].direct_answer) {
       answer = hits[0].direct_answer;
