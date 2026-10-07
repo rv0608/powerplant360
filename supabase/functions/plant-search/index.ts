@@ -192,8 +192,13 @@ Rules:
   const cleanLine = answer
     .replace(/\[[^\]]+\]\([^\)]+\)/g, "")
     .replace(/https?:\/\/\S+/g, "")
+    .replace(/【[^】]+】/g, "")
+    .replace(/\[(?:source\s*)?\d+\]/gi, "")
+    .replace(/\((?:source\s*)?\d+\)/gi, "")
+    .replace(/[\uE000-\uF8FF]/g, "")
     .replace(/[\*_#>~-]+/g, "")
     .replace(/\s+/g, " ")
+    .replace(/\s+0\s*$/g, "")
     .trim();
 
   return {
