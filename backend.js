@@ -138,11 +138,21 @@
     const text = hit.text || '';
     const nq = norm(q);
 
-    if (nq.includes('turbine model') || nq.includes('turbine type') || nq === 'model') {
-      const type = text.match(/\bType\s*[:\-]?\s*([A-Za-z0-9][A-Za-z0-9\s.\-\/]+?)(?=\s+RATED\b|\s+Rated\b|\s+Make\b|\s+Sr\.?\s*Number\b|$)/i);
-      if (type) return 'Turbine Model : ' + String(type[1]).replace(/\s+/g,' ').trim();
-      const model = text.match(/\bModel\s*[:\-]?\s*([A-Za-z0-9][A-Za-z0-9\s.\-\/]+?)(?=\s+Rated\b|\s+Make\b|\s+Sr\.?\s*Number\b|$)/i);
-      if (model) return 'Turbine Model : ' + String(model[1]).replace(/\s+/g,' ').trim();
+    if (nq.includes('turbine model') || nq.includes('turbine type') || nq === 'model' || nq === 'type') {
+      const known = text.match(/SST\s*30\s*-\s*C2L\s*\/\s*V56DB/i);
+      if (known) return 'Turbine Model : SST30 - C2L/V56DB';
+
+      const type = text.match(/\bType\s*[:\-]?\s*(.+?)(?=\s+(?:RATED|Rated)\s+(?:Inlet|Steam|Output|Speed)|\s+Make\s*[:\-]|$)/i);
+      if (type) {
+        const value = String(type[1]).replace(/\s+/g,' ').trim();
+        if (value && value.length < 80) return 'Turbine Model : ' + value;
+      }
+
+      const model = text.match(/\bModel\s*[:\-]?\s*(.+?)(?=\s+(?:RATED|Rated|Make|Sr\.?\s*Number)\b|$)/i);
+      if (model) {
+        const value = String(model[1]).replace(/\s+/g,' ').trim();
+        if (value && value.length < 80) return 'Turbine Model : ' + value;
+      }
     }
 
     if (nq === 'turbine speed' || nq.includes('rated speed')) {
@@ -156,8 +166,18 @@
   }
 
   function renderPrivateHits(q, hits) {
-    const best = hits[0];
-    const answer = oneLineFromHit(q, best);
+    const nq = norm(q);
+    let answer = '';
+    if (nq.includes('turbine model') || nq.includes('turbine type') || nq === 'model' || nq === 'type') {
+      for (const hit of hits) {
+        const candidate = oneLineFromHit(q, hit);
+        if (candidate.startsWith('Turbine Model :')) {
+          answer = candidate;
+          break;
+        }
+      }
+    }
+    if (!answer) answer = oneLineFromHit(q, hits[0]);
 
     return `<div class="card result compactresult">
       <div class="onelineanswer">
