@@ -996,16 +996,35 @@
   };
 
   async function viewDocument(id) {
-    const d = docs.find(x => x.id === id);
-    if (!d) return;
+    let d = docs.find(x => x.id === id);
+
+    if (!d) {
+      const { data, error } = await client()
+        .from('documents')
+        .select('id,file_name,storage_path')
+        .eq('id', id)
+        .single();
+
+      if (error || !data) {
+        alert('Could not find this document.');
+        return;
+      }
+      d = data;
+    }
+
     const { data, error } = await client().storage
       .from('plant-documents')
-      .createSignedUrl(d.storage_path, 300);
-    if (error) {
-      alert('Could not open document: ' + error.message);
+      .createSignedUrl(d.storage_path, 600);
+
+    if (error || !data?.signedUrl) {
+      alert('Could not open document: ' + (error?.message || 'Signed link was not created.'));
       return;
     }
-    window.open(data.signedUrl, '_blank', 'noopener');
+
+    const w = window.open(data.signedUrl, '_blank');
+    if (!w) {
+      window.location.href = data.signedUrl;
+    }
   }
 
   window.viewDocument = viewDocument;
