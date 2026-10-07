@@ -213,55 +213,62 @@
     const stop = new Set(['what','is','the','of','for','data','value','details','detail','rated','show','give','please']);
     def.terms.forEach(t => t.split(' ').forEach(w => stop.add(w)));
     const subjects = nq.split(' ').filter(w => w.length > 2 && !stop.has(w));
-
-    const allLabels = defs.flatMap(d=>d.labels).sort((a,b)=>b.length-a.length);
+    const allLabels = defs.flatMap(d => d.labels).sort((a,b)=>b.length-a.length);
     const escRe = v => v.replace(/[.*+?^()|[\]\\]/g,'\\$&');
     const stopAlt = allLabels.map(escRe).join('|');
 
-    const subjectHits = subjects.length ? hits.filter(hit => {
-      const low = (hit.text || '').toLowerCase();
-      return subjects.some(subject =>
-        low.includes(subject + ' specifications') ||
-        low.includes(subject + ' specification') ||
-        low.includes(subject + ' technical data') ||
-        low.includes(subject + ' data')
-      );
-    }) : [];
-
-    const orderedHits = subjectHits.length
-      ? [...subjectHits, ...hits.filter(h => !subjectHits.includes(h))]
-      : hits;
-    let best = null;
-    for (const hit of orderedHits) {
-      const text = (hit.text || '').replace(/\s+/g,' ').trim();
-      const lower = text.toLowerCase();
+    function extractFromSegment(segment, baseScore) {
+      let best = null;
       for (const label of def.labels) {
         const re = new RegExp('\\b' + escRe(label) + '\\s*[:=\\-]?\\s*(.{1,90}?)(?=\\s+(?:' + stopAlt + ')\\s*[:=\\-]?|$)','ig');
         let m;
-        while ((m = re.exec(text)) !== null) {
+        while ((m = re.exec(segment)) !== null) {
           let value = (m[1] || '').trim().replace(/[.,;]+$/,'').trim();
           if (!value || value.length > 70) continue;
-          let score = Number(hit.score || 0);
-          if (subjectHits.includes(hit)) score += 150;
-          const idx = m.index;
-          const before = lower.slice(Math.max(0, idx - 350), idx);
-          const around = lower.slice(Math.max(0, idx - 180), Math.min(lower.length, idx + 180));
-          for (const subject of subjects) {
-            if (around.includes(subject)) score += 45;
-            else if (before.includes(subject)) score += 20;
-            else if (lower.includes(subject)) score += 5;
-            if (lower.includes(subject + ' specifications') || lower.includes(subject + ' specification')) score += 80;
-            if (norm(hit.category || '').includes(subject)) score += 15;
-          }
-          if (label === def.labels[0]) score += 5;
+          const score = baseScore + (label === def.labels[0] ? 10 : 0);
           if (!best || score > best.score) best = {score, label, value};
         }
       }
+      return best;
     }
-    if (!best) return '';
 
+    let best = null;
+    for (const hit of hits) {
+      const text = (hit.text || '').replace(/\s+/g,' ').trim();
+      const lower = text.toLowerCase();
+      const segments = [];
+
+      if (subjects.length) {
+        for (const subject of subjects) {
+          let from = 0;
+          while (true) {
+            const pos = lower.indexOf(subject, from);
+            if (pos < 0) break;
+            const start = Math.max(0, pos - 80);
+            const end = Math.min(text.length, pos + 900);
+            const segment = text.slice(start, end);
+            const segLower = segment.toLowerCase();
+            let score = Number(hit.score || 0) + 100;
+            if (segLower.includes(subject + ' specifications') || segLower.includes(subject + ' specification')) score += 200;
+            if (segLower.includes(subject + ' technical data') || segLower.includes(subject + ' data')) score += 120;
+            if (norm(hit.category || '').includes(subject)) score += 40;
+            segments.push({segment, score});
+            from = pos + subject.length;
+          }
+        }
+      }
+
+      if (!segments.length) segments.push({segment:text, score:Number(hit.score || 0)});
+
+      for (const item of segments) {
+        const found = extractFromSegment(item.segment, item.score);
+        if (found && (!best || found.score > best.score)) best = found;
+      }
+    }
+
+    if (!best) return '';
     if (def.terms.includes('model') || def.terms.includes('type')) {
-      const subject = subjects.length ? subjects.map(w=>w.charAt(0).toUpperCase()+w.slice(1)).join(' ') + ' ' : '';
+      const subject = subjects.length ? subjects.map(w => w.charAt(0).toUpperCase()+w.slice(1)).join(' ') + ' ' : '';
       return subject + 'Model : ' + best.value;
     }
     return best.label + ' : ' + best.value;
