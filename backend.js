@@ -1346,7 +1346,7 @@
         '<div class="multi-answer-row"><span>' + esc(r.label) + '</span><b>' + esc(r.value) + '</b></div>'
       ).join('');
       const view = multi.hit && multi.hit.id
-        ? '<div class="result-actions"><button onclick="viewDocument(\'' + multi.hit.id + '\')">View related document</button></div>'
+        ? '<div class="result-actions"><button onclick="viewDocument(\'' + multi.hit.id + '\'' + (multi.hit.page ? ',' + Number(multi.hit.page) : '') + ')">View related document' + (multi.hit.page ? ' · Page ' + Number(multi.hit.page) : '') + '</button></div>'
         : '';
       return '<div class="card result compactresult"><div class="multi-answer">' + rows + '</div>' + view + '</div>';
     }
@@ -1357,7 +1357,7 @@
         '<div class="multi-answer-row"><span>' + esc(r.label) + '</span><b>' + esc(r.value) + '</b></div>'
       ).join('');
       const view = genericRows.hit && genericRows.hit.id
-        ? '<div class="result-actions"><button onclick="viewDocument(\'' + genericRows.hit.id + '\')">View related document</button></div>'
+        ? '<div class="result-actions"><button onclick="viewDocument(\'' + genericRows.hit.id + '\'' + (genericRows.hit.page ? ',' + Number(genericRows.hit.page) : '') + ')">View related document' + (genericRows.hit.page ? ' · Page ' + Number(genericRows.hit.page) : '') + '</button></div>'
         : '';
       return '<div class="card result compactresult"><div class="multi-answer">' + rows + '</div>' + view + '</div>';
     }
@@ -1421,7 +1421,7 @@
     answer = cleanDisplayedAnswer(answer);
 
     const view = answerHit.id
-      ? '<div class="result-actions"><button onclick="viewDocument(\'' + answerHit.id + '\')">View related document</button></div>'
+      ? '<div class="result-actions"><button onclick="viewDocument(\'' + answerHit.id + '\'' + (answerHit.page ? ',' + Number(answerHit.page) : '') + ')">View related document' + (answerHit.page ? ' · Page ' + Number(answerHit.page) : '') + '</button></div>'
       : '';
 
     return '<div class="card result compactresult">' + answerHtml(answer) + view + '</div>';
@@ -2131,7 +2131,7 @@
     await loadDocsFromBackend();
   };
 
-  async function viewDocument(id) {
+  async function viewDocument(id, page=null) {
     let d = docs.find(x => x.id === id);
 
     if (!d) {
@@ -2157,9 +2157,14 @@
       return;
     }
 
-    const w = window.open(data.signedUrl, '_blank');
+    const pageNum = Number(page);
+    const targetUrl = Number.isFinite(pageNum) && pageNum > 0
+      ? data.signedUrl + '#page=' + Math.floor(pageNum)
+      : data.signedUrl;
+
+    const w = window.open(targetUrl, '_blank');
     if (!w) {
-      window.location.href = data.signedUrl;
+      window.location.href = targetUrl;
     }
   }
 
@@ -2239,7 +2244,11 @@
       const id = src?.document_id || src?.id;
       if (!id || seen.has(id)) continue;
       seen.add(id);
-      buttons.push('<button onclick="viewDocument(\'' + id + '\')">View supporting document</button>');
+      const page = Number(src?.page);
+      const safePage = Number.isFinite(page) && page > 0 ? Math.floor(page) : null;
+      const pageArg = safePage ? ',' + safePage : '';
+      const pageLabel = safePage ? ' · Page ' + safePage : '';
+      buttons.push('<button onclick="viewDocument(\'' + id + '\'' + pageArg + ')">View supporting document' + pageLabel + '</button>');
       if (buttons.length >= 3) break;
     }
 
