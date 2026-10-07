@@ -131,7 +131,7 @@
         }
       }
     }
-    return hits.sort((a,b)=>b.score-a.score).slice(0,6);
+    return hits.sort((a,b)=>b.score-a.score).slice(0,30);
   }
 
   function oneLineFromHit(q, hit) {
