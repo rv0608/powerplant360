@@ -626,6 +626,7 @@
           ${((d.mime_type||'').includes('pdf') || (d.file_name||'').toLowerCase().endsWith('.pdf')) && d.processing_status !== 'ready'
             ? `<button onclick="indexExistingPdf('${d.id}')">Index PDF</button>`
             : ''}
+          <button onclick="viewDocument('${d.id}')">View</button>
           <button onclick="editDoc('${d.id}')">Edit</button>
           <button class="dangerbtn" onclick="del('${d.id}')">Delete</button>
         </td>
@@ -681,6 +682,20 @@
     await loadDocsFromBackend();
   };
 
+  async function viewDocument(id) {
+    const d = docs.find(x => x.id === id);
+    if (!d) return;
+    const { data, error } = await client().storage
+      .from('plant-documents')
+      .createSignedUrl(d.storage_path, 300);
+    if (error) {
+      alert('Could not open document: ' + error.message);
+      return;
+    }
+    window.open(data.signedUrl, '_blank', 'noopener');
+  }
+
+  window.viewDocument = viewDocument;
   del = async function (id) {
     const d = docs.find(x => x.id === id);
     if (!d) return;
