@@ -138,6 +138,13 @@
     const text = hit.text || '';
     const nq = norm(q);
 
+    if (nq.includes('turbine model') || nq.includes('turbine type') || nq === 'model') {
+      const type = text.match(/\bType\s*[:\-]?\s*([A-Za-z0-9][A-Za-z0-9\s.\-\/]+?)(?=\s+RATED\b|\s+Rated\b|\s+Make\b|\s+Sr\.?\s*Number\b|$)/i);
+      if (type) return 'Turbine Model : ' + String(type[1]).replace(/\s+/g,' ').trim();
+      const model = text.match(/\bModel\s*[:\-]?\s*([A-Za-z0-9][A-Za-z0-9\s.\-\/]+?)(?=\s+Rated\b|\s+Make\b|\s+Sr\.?\s*Number\b|$)/i);
+      if (model) return 'Turbine Model : ' + String(model[1]).replace(/\s+/g,' ').trim();
+    }
+
     if (nq === 'turbine speed' || nq.includes('rated speed')) {
       const rated = text.match(/Rated Speed\s*:?\s*([0-9][0-9\s,.]*)\s*RPM/i);
       if (rated) return 'Rated Speed : ' + String(rated[1]).trim() + ' RPM';
