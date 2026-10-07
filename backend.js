@@ -246,7 +246,7 @@
       {category:'Steam Turbine', terms:['steam turbine','turbine','governor','turbine gear','gear box','gearbox']},
       {category:'CFBC Boiler', terms:['cfbc','boiler','bed material','bed ash','pa fan','sa fan','id fan','bfp','bfw pump','superheater','economiser','economizer','evaporator','steam drum']},
       {category:'Air Cooled Condenser', terms:['acc','air cooled condenser']},
-      {category:'ESP', terms:['esp','electrostatic precipitator']},
+      {category:'CFBC Boiler', terms:['esp','electrostatic precipitator']},
       {category:'CHP', terms:['chp','coal handling']},
       {category:'AHS', terms:['ahs','ash handling']},
       {category:'WTP / ETP', terms:['wtp','etp','water treatment','effluent treatment']},
@@ -319,7 +319,7 @@
       {label:'BFP', category:'CFBC Boiler', exact:['bfp','bfw pump','boiler feed pump','boiler feed water pump'], vendorQuery:'bfp make'},
       {label:'Steam Turbine', category:'Steam Turbine', exact:['steam turbine','turbine'], vendorQuery:'turbine make'},
       {label:'Air Cooled Condenser', category:'Air Cooled Condenser', exact:['acc','air cooled condenser'], vendorQuery:'acc make'},
-      {label:'ESP', category:'ESP', exact:['esp','electrostatic precipitator'], vendorQuery:'esp make'}
+      {label:'ESP', category:'CFBC Boiler', exact:['esp','electrostatic precipitator'], vendorQuery:'esp make'}
     ];
     return defs.find(d => d.exact.includes(nq)) || null;
   }
