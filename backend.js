@@ -2367,6 +2367,14 @@
     try {
       if (btn) { btn.disabled = true; btn.textContent = 'Thinking…'; }
 
+      renderTabs();
+      document.getElementById('view').innerHTML =
+        '<div class="card result compactresult">' +
+          '<div class="ai-answer-badge">Plant AI</div>' +
+          '<div class="onelineanswer"><b>Searching ' + esc(scopeValue) + ' documents first…</b></div>' +
+          '<div class="muted small" style="margin-top:8px">If no verified plant-document answer is found, online references will be searched automatically.</div>' +
+        '</div>';
+
       const { data: sessionData } = await client().auth.getSession();
       const token = sessionData?.session?.access_token;
       if (!token) return searchAll();
