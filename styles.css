@@ -213,3 +213,8 @@ details p{margin:9px 0 2px;line-height:1.55}
 .multi-answer-row:last-child{border-bottom:0}
 .multi-answer-row span{font-weight:600}
 @media (max-width:640px){.multi-answer-row{flex-direction:column;gap:3px}}
+
+
+.simple-answer-lines{display:flex;flex-direction:column;gap:7px;font-weight:700}
+.simple-answer-lines>div{padding:5px 0;border-bottom:1px solid #edf1f5}
+.simple-answer-lines>div:last-child{border-bottom:0}
