@@ -111,6 +111,9 @@
     const tokens = queryTokens(q);
     if (!tokens.length) return [];
 
+    const pressurePartTerms = ['panel','pressure part','tube','coil','header','superheater','economiser','economizer','evaporator','water wall','drum','downcomer','riser','sh','economiser coil','economizer coil'];
+    const wantsPressureParts = pressurePartTerms.some(t => norm(q).includes(t));
+
     const hits = [];
     for (const d of data) {
       const raw = d.extracted_text || '';
@@ -118,7 +121,9 @@
       for (let i = 1; i < parts.length; i += 2) {
         const pageNo = Number(parts[i]);
         const text = parts[i + 1] || '';
-        const score = pageMatches(text, tokens, q);
+        let score = pageMatches(text, tokens, q);
+        const section = norm((d.metadata && d.metadata.section) || '');
+        if (wantsPressureParts && section === 'pressure parts') score += 120;
         if (score > 0) {
           hits.push({
             score,
@@ -503,13 +508,16 @@
       const { data: insertedRows, error: dbError } = await client().from('documents').insert({
         file_name: file.name,
         storage_path: storagePath,
-        category: guessCategory(file.name),
+        category: (window.pp360UploadContext && window.pp360UploadContext.category) || guessCategory(file.name),
         document_type: guessDocType(file.name),
         file_size: file.size,
         mime_type: file.type || null,
         processing_status: file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf') ? 'processing' : 'uploaded',
         uploaded_by: s.user.id,
-        metadata: { original_name: file.name }
+        metadata: {
+          original_name: file.name,
+          section: (window.pp360UploadContext && window.pp360UploadContext.section) || ''
+        }
       }).select('id').single();
 
       if (dbError) {
@@ -536,7 +544,11 @@
           await client().from('documents').update({
             processing_status: 'error',
             updated_at: new Date().toISOString(),
-            metadata: { original_name: file.name, extraction_error: String(extractErr.message || extractErr) }
+            metadata: {
+              original_name: file.name,
+              section: (window.pp360UploadContext && window.pp360UploadContext.section) || '',
+              extraction_error: String(extractErr.message || extractErr)
+            }
           }).eq('id', insertedRows.id);
           status.innerHTML = '<span class="errtext">Upload saved, but PDF text extraction failed: ' + esc(extractErr.message || String(extractErr)) + '</span>';
         }
