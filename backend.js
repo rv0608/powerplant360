@@ -348,7 +348,7 @@
 
       <div class="notice"><b>Real backend enabled:</b> files are stored privately in Supabase Storage and metadata is stored in the database. The progress bar shows actual network upload progress.</div>
 
-      <div id="storageUsage" class="storage-usage"></div>
+      <div id="storageUsage" class="storage-usage"><div class="muted small">Storage monitor loading…</div></div>
 
       <div class="doc-toolbar">
         <div>
