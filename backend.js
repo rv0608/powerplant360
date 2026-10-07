@@ -135,55 +135,70 @@
   }
 
   function oneLineFromHit(q, hit) {
-    const text = hit.text || '';
+    const text = (hit.text || '').replace(/\s+/g,' ').trim();
     const nq = norm(q);
 
-    if (nq.includes('turbine model') || nq.includes('turbine type') || nq === 'model' || nq === 'type') {
-      const known = text.match(/SST\s*30\s*-\s*C2L\s*\/\s*V56DB/i);
-      if (known) return 'Turbine Model : SST30 - C2L/V56DB';
+    const groups = [
+      {terms:['model','type'], labels:['Model','Type']},
+      {terms:['speed','rpm'], labels:['Rated Speed','Speed']},
+      {terms:['pressure'], labels:['Rated Pressure','Design Pressure','Inlet Steam Pressure','Pressure']},
+      {terms:['temperature','temp'], labels:['Rated Temperature','Design Temperature','Inlet Steam Temperature','Temperature','Temp']},
+      {terms:['capacity','flow'], labels:['Rated Capacity','Capacity','Flow']},
+      {terms:['output','power','rating'], labels:['Rated Output','Output','Rated Power','Power','Rating']},
+      {terms:['current','amps','amp'], labels:['Rated Current','Current','Amps']},
+      {terms:['voltage','volt'], labels:['Rated Voltage','Voltage']},
+      {terms:['frequency','hz'], labels:['Frequency']},
+      {terms:['head'], labels:['Rated Head','Head']},
+      {terms:['efficiency'], labels:['Efficiency']},
+      {terms:['npsh','npshr'], labels:['NPSHr','NPSH']},
+      {terms:['diameter','dia'], labels:['Diameter','Dia']},
+      {terms:['material'], labels:['Material']},
+      {terms:['make','manufacturer','oem'], labels:['Make','Manufacturer','OEM']},
+      {terms:['serial','sr no','sr number'], labels:['Sr. Number','Serial Number','Sr No']},
+      {terms:['bearing temperature','bearing temp'], labels:['Bearing Temperature','Bearing Temp']}
+    ];
 
-      const type = text.match(/\bType\s*[:\-]?\s*(.+?)(?=\s+(?:RATED|Rated)\s+(?:Inlet|Steam|Output|Speed)|\s+Make\s*[:\-]|$)/i);
-      if (type) {
-        const value = String(type[1]).replace(/\s+/g,' ').trim();
-        if (value && value.length < 80) return 'Turbine Model : ' + value;
-      }
-
-      const model = text.match(/\bModel\s*[:\-]?\s*(.+?)(?=\s+(?:RATED|Rated|Make|Sr\.?\s*Number)\b|$)/i);
-      if (model) {
-        const value = String(model[1]).replace(/\s+/g,' ').trim();
-        if (value && value.length < 80) return 'Turbine Model : ' + value;
-      }
+    function escapeRegex(v) {
+      return v.replace(/[.*+?^()|[\]\\]/g,'\\$&');
     }
 
-    if (nq === 'turbine speed' || nq.includes('rated speed')) {
-      const rated = text.match(/Rated Speed\s*:?\s*([0-9][0-9\s,.]*)\s*RPM/i);
-      if (rated) return 'Rated Speed : ' + String(rated[1]).trim() + ' RPM';
+    function extract(label) {
+      const re = new RegExp('\\b' + escapeRegex(label) + '\\s*[:=\\-]?\\s*([^;|]{1,90})','i');
+      const m = text.match(re);
+      if (!m) return null;
+      let value = m[1].trim();
+      value = value.replace(/\s+(Rated|Design|Make|Model|Type|Voltage|Current|Speed|Pressure|Temperature|Capacity|Output|Power|Rating)\b.*$/i,'').trim();
+      if (!value || value.length > 80) return null;
+      return label + ' : ' + value;
+    }
+
+    for (const group of groups) {
+      if (group.terms.some(term => nq.includes(term))) {
+        for (const label of group.labels) {
+          const result = extract(label);
+          if (result) return result;
+        }
+      }
     }
 
     const tokens = queryTokens(q);
     const snippet = makeSnippet(text, tokens).replace(/\s+/g,' ').trim();
-    return snippet.length > 180 ? snippet.slice(0,180) + '…' : snippet;
+    if (!snippet) return 'No exact value found in the uploaded documents.';
+    return snippet.length > 160 ? snippet.slice(0,160) + '…' : snippet;
   }
 
   function renderPrivateHits(q, hits) {
-    const nq = norm(q);
     let answer = '';
-    if (nq.includes('turbine model') || nq.includes('turbine type') || nq === 'model' || nq === 'type') {
-      for (const hit of hits) {
-        const candidate = oneLineFromHit(q, hit);
-        if (candidate.startsWith('Turbine Model :')) {
-          answer = candidate;
-          break;
-        }
+    for (const hit of hits) {
+      const candidate = oneLineFromHit(q, hit);
+      if (candidate && candidate.includes(' : ')) {
+        answer = candidate;
+        break;
       }
     }
     if (!answer) answer = oneLineFromHit(q, hits[0]);
 
-    return `<div class="card result compactresult">
-      <div class="onelineanswer">
-        <b>${esc(answer)}</b>
-      </div>
-    </div>`;
+    return '<div class="card result compactresult"><div class="onelineanswer"><b>' + esc(answer) + '</b></div></div>';
   }
 
   adminPage = async function () {
