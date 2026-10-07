@@ -2205,6 +2205,94 @@
     originalSearchAll();
   };
 
+  function renderRagAnswer(payload) {
+    const lines = Array.isArray(payload?.answer_lines)
+      ? payload.answer_lines.filter(Boolean)
+      : String(payload?.answer || '').split(/\n+/).map(x=>x.trim()).filter(Boolean);
+
+    const lineHtml = lines.length
+      ? '<div class="multi-answer">' + lines.map(line => {
+          const m = line.match(/^([^:]{1,80})\s*:\s*(.+)$/);
+          return m
+            ? '<div class="multi-answer-row"><span>' + esc(m[1]) + '</span><b>' + esc(m[2]) + '</b></div>'
+            : '<div class="simple-answer-lines"><div>' + esc(line) + '</div></div>';
+        }).join('') + '</div>'
+      : '<div class="onelineanswer"><b>No verified answer found.</b></div>';
+
+    const seen = new Set();
+    const buttons = [];
+    for (const src of (payload?.sources || [])) {
+      const id = src?.document_id || src?.id;
+      if (!id || seen.has(id)) continue;
+      seen.add(id);
+      buttons.push('<button onclick="viewDocument(\'' + id + '\')">View supporting document</button>');
+      if (buttons.length >= 3) break;
+    }
+
+    const actions = buttons.length
+      ? '<div class="result-actions">' + buttons.join('') + '</div>'
+      : '';
+
+    return '<div class="card result compactresult"><div class="ai-answer-badge">Plant AI</div>' + lineHtml + actions + '</div>';
+  }
+
+  window.pp360Search = async function () {
+    const raw = document.getElementById('q')?.value.trim() || '';
+    if (!raw) return;
+
+    const scopeValue = document.getElementById('searchScope')?.value || '';
+    const btn = document.getElementById('plantSearchBtn');
+    const oldText = btn ? btn.textContent : '';
+
+    // Public users continue to use the built-in/public search.
+    if (!backendSession || !backendRole || !['admin','engineer','viewer'].includes(backendRole)) {
+      return searchAll();
+    }
+
+    try {
+      if (btn) { btn.disabled = true; btn.textContent = 'Thinking…'; }
+
+      const { data: sessionData } = await client().auth.getSession();
+      const token = sessionData?.session?.access_token;
+      if (!token) return searchAll();
+
+      const endpoint = cfg.supabaseUrl.replace(/\/$/,'') + '/functions/v1/plant-search';
+      const res = await fetch(endpoint, {
+        method:'POST',
+        headers:{
+          'Content-Type':'application/json',
+          'Authorization':'Bearer ' + token,
+          'apikey':cfg.supabaseKey
+        },
+        body:JSON.stringify({question:raw, scope:scopeValue || null})
+      });
+
+      if (!res.ok) throw new Error('RAG endpoint unavailable: ' + res.status);
+      const payload = await res.json();
+      if (!payload || (!payload.answer && !Array.isArray(payload.answer_lines))) {
+        throw new Error('No AI answer returned.');
+      }
+
+      history = [raw, ...history.filter(x => norm(x) !== norm(raw))].slice(0,30);
+      localStorage.setItem('pp360history',JSON.stringify(history));
+      renderTabs();
+      document.getElementById('view').innerHTML = renderRagAnswer(payload);
+    } catch (err) {
+      // Keep PowerPlant360 usable until the secure Edge Function is deployed.
+      await searchAll();
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = oldText || 'Ask Plant AI'; }
+    }
+  };
+
+  const qInput = document.getElementById('q');
+  if (qInput) qInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      window.pp360Search();
+    }
+  });
+
   restoreBackendSession();
 
   const headerRefresh = document.getElementById('refreshBtn');
