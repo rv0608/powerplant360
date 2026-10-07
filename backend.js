@@ -225,6 +225,69 @@
     return snippet.length > 160 ? snippet.slice(0,160) + '…' : snippet;
   }
 
+  function equipmentVendorFromText(q, hits) {
+    const nq = norm(q);
+    if (!/(make|manufacturer|oem)/.test(nq)) return '';
+
+    const defs = [
+      {label:'PA FAN', terms:['pa fan','primary air fan'], grouped:['id/sa/pa fan','pa/sa/id fan','id sa pa fan','pa sa id fan']},
+      {label:'SA FAN', terms:['sa fan','secondary air fan'], grouped:['id/sa/pa fan','pa/sa/id fan','id sa pa fan','pa sa id fan']},
+      {label:'ID FAN', terms:['id fan','induced draft fan'], grouped:['id/sa/pa fan','pa/sa/id fan','id sa pa fan','pa sa id fan']},
+      {label:'BFP', terms:['bfp','bfw pump','boiler feed pump','boiler feed water pump'], grouped:['bfw pump','bfp']},
+      {label:'ESP', terms:['esp','electrostatic precipitator'], grouped:['esp']},
+      {label:'STEAM TURBINE', terms:['steam turbine','turbine'], grouped:['steam turbine','turbine']}
+    ];
+    const eq = defs.find(d => d.terms.some(t => nq.includes(t)));
+    if (!eq) return '';
+
+    const stopWords = /\b(o\s*&\s*m|manual|drawing|datasheet|data sheet|section|volume|technical|documents?|curves?|index|specification)\b/i;
+    let best = null;
+
+    for (const hit of hits) {
+      const raw = String(hit.text || '').replace(/\s+/g,' ').trim();
+      if (!raw) continue;
+      const low = raw.toLowerCase();
+
+      const anchors = [...eq.terms, ...eq.grouped];
+      for (const anchor of anchors) {
+        let from = 0;
+        while (true) {
+          const p = low.indexOf(anchor, from);
+          if (p < 0) break;
+          const seg = raw.slice(Math.max(0,p-40), Math.min(raw.length,p+180));
+          const segLow = seg.toLowerCase();
+
+          // Ignore grouped motor entries such as "PA/SA/ID Fan/BFWP Motor — ABB".
+          if (/\bmotor\b/.test(segLow) && !/\bfan\s*[-–—:]\s*/i.test(seg)) {
+            from = p + anchor.length;
+            continue;
+          }
+
+          const escaped = anchor.replace(/[.*+?^()|[\]\\]/g,'\\$&');
+          const rel = new RegExp(escaped + '\\s*(?:[-–—:]|\\bis\\b|\\bby\\b)\\s*([^.;|]{2,70})','i');
+          const m = seg.match(rel);
+          if (m) {
+            let vendor = (m[1] || '').trim()
+              .replace(stopWords, '')
+              .replace(/\s{2,}.*/,'')
+              .replace(/[,:;.-]+$/,'')
+              .trim();
+
+            if (vendor && vendor.length <= 55 && !/bearing|motor|actuator|gearbox|coupling/i.test(vendor)) {
+              let score = Number(hit.score || 0) + 500;
+              if ((hit.section || '').toLowerCase().includes('vendor')) score += 100;
+              if (/andrew yule|ksb|siemens|thermax|yokogawa|forbes marshall|abb|rotex|schroedahl|tyco|valvetech|amrit|kwality|mil control/i.test(vendor)) score += 80;
+              if (!best || score > best.score) best = {score,vendor};
+            }
+          }
+          from = p + anchor.length;
+        }
+      }
+    }
+
+    return best ? eq.label + ' Make : ' + best.vendor : '';
+  }
+
   function equipmentVendorFromPath(q, hits) {
     const nq = norm(q);
     if (!/(make|manufacturer|oem)/.test(nq)) return '';
@@ -467,7 +530,8 @@
     return best.label + ' : ' + best.value;
   }
   function renderPrivateHits(q, hits) {
-    let answer = equipmentVendorFromPath(q, hits);
+    let answer = equipmentVendorFromText(q, hits);
+    if (!answer) answer = equipmentVendorFromPath(q, hits);
     if (!answer) answer = equipmentAnchoredFieldAnswer(q, hits);
     if (!answer) answer = contextualFieldAnswer(q, hits);
     if (!answer) {
