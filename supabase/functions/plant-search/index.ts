@@ -77,6 +77,90 @@ function extractResponseText(payload: any) {
   return "";
 }
 
+function collectWebSources(payload: any) {
+  const out: Array<{title:string,url:string}> = [];
+  const seen = new Set<string>();
+
+  const push = (title:any, url:any) => {
+    const u = String(url || "").trim();
+    if (!/^https?:\/\//i.test(u) || seen.has(u)) return;
+    seen.add(u);
+    out.push({ title:String(title || u).trim().slice(0,160), url:u });
+  };
+
+  for (const item of payload?.output || []) {
+    for (const c of item?.content || []) {
+      for (const a of c?.annotations || []) {
+        const uc = a?.url_citation || a;
+        if (a?.type === "url_citation" || uc?.url) push(uc?.title, uc?.url);
+      }
+    }
+    for (const src of item?.sources || []) push(src?.title, src?.url);
+  }
+
+  for (const src of payload?.sources || []) push(src?.title, src?.url);
+  return out.slice(0, 6);
+}
+
+function isNoExact(lines:any) {
+  const list = Array.isArray(lines) ? lines : [];
+  if (!list.length) return true;
+  return list.every((x:any) => /no exact plant-document match found/i.test(String(x || "")));
+}
+
+async function webFallback(openaiKey:string, model:string, question:string, scope:string) {
+  const webInstructions = `
+You are PowerPlant360, a thermal power-plant engineering assistant.
+The selected department is: ${scope}.
+
+The plant's private documents did not contain a verified answer, so answer from current public web sources.
+Rules:
+- Clearly treat the answer as general/online information, not as verified plant-specific data.
+- Never claim an online value is this plant's actual value.
+- If the question asks for a plant-specific make, model, setting, rating, serial number, exact design value, or exact operating limit, state that the plant-specific value is not verified and then give only useful general context if available.
+- Prefer manufacturer/OEM documentation, standards bodies, government/academic sources, and established engineering references.
+- Keep the answer concise.
+- One requested value or fact: one clean line.
+- Multiple points/specifications: one point per line.
+- Do not output markdown tables.
+`.trim();
+
+  const res = await fetch("https://api.openai.com/v1/responses", {
+    method:"POST",
+    headers:{
+      "Authorization":`Bearer ${openaiKey}`,
+      "Content-Type":"application/json"
+    },
+    body:JSON.stringify({
+      model,
+      instructions:webInstructions,
+      tools:[{ type:"web_search", search_context_size:"medium" }],
+      tool_choice:"auto",
+      input:`Department: ${scope}\nQuestion: ${question}`
+    })
+  });
+
+  if (!res.ok) {
+    const t = await res.text();
+    throw new Error(`Web search failed (${res.status}): ${t.slice(0,300)}`);
+  }
+
+  const payload = await res.json();
+  const answer = extractResponseText(payload).trim();
+  const answerLines = answer
+    .split(/\n+/)
+    .map((x:string) => x.replace(/^[-•*]\s*/, "").trim())
+    .filter(Boolean);
+
+  return {
+    answer_lines: answerLines.length ? answerLines : ["No reliable online reference found."],
+    sources: [],
+    web_sources: collectWebSources(payload),
+    source_type: "web",
+    scope
+  };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return new Response("Method not allowed", { status: 405, headers: corsHeaders });
@@ -90,7 +174,7 @@ Deno.serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const openaiKey = Deno.env.get("OPENAI_API_KEY");
-    const model = Deno.env.get("OPENAI_MODEL") || "gpt-5-mini";
+    const model = Deno.env.get("OPENAI_MODEL") || "gpt-5.6";
 
     if (!openaiKey) {
       return new Response(JSON.stringify({ error: "AI_NOT_CONFIGURED" }), { status: 503, headers: { ...corsHeaders, "Content-Type":"application/json" }});
@@ -157,7 +241,8 @@ Deno.serve(async (req) => {
 
     if (error) throw error;
     if (!docs?.length) {
-      return new Response(JSON.stringify({ answer_lines:["No exact plant-document match found."], sources:[] }), {
+      const online = await webFallback(openaiKey, model, question, scope);
+      return new Response(JSON.stringify(online), {
         headers:{ ...corsHeaders, "Content-Type":"application/json" }
       });
     }
@@ -186,7 +271,8 @@ Deno.serve(async (req) => {
     const top = chunks.slice(0, 8);
 
     if (!top.length) {
-      return new Response(JSON.stringify({ answer_lines:["No exact plant-document match found."], sources:[] }), {
+      const online = await webFallback(openaiKey, model, question, scope);
+      return new Response(JSON.stringify(online), {
         headers:{ ...corsHeaders, "Content-Type":"application/json" }
       });
     }
@@ -257,9 +343,19 @@ source_indices must contain only the source numbers that directly support the an
         page:x.page
       }));
 
+    const answerLines = Array.isArray(parsed?.answer_lines) ? parsed.answer_lines : [];
+    if (isNoExact(answerLines)) {
+      const online = await webFallback(openaiKey, model, question, scope);
+      return new Response(JSON.stringify(online), {
+        headers:{ ...corsHeaders, "Content-Type":"application/json" }
+      });
+    }
+
     return new Response(JSON.stringify({
-      answer_lines:Array.isArray(parsed?.answer_lines) ? parsed.answer_lines : [],
+      answer_lines:answerLines,
       sources,
+      web_sources:[],
+      source_type:"plant",
       scope
     }), {
       headers:{ ...corsHeaders, "Content-Type":"application/json" }
