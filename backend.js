@@ -169,6 +169,54 @@
     return null;
   }
 
+  function queryDetailTokens(q) {
+    const generic = new Set([
+      'what','is','the','of','for','show','give','please','data','details','detail',
+      'cfbc','boiler','steam','turbine','plant','system','equipment','fan','pump'
+    ]);
+    return queryTokens(q).filter(t => !generic.has(t));
+  }
+
+  function tokenPresentFlexible(hay, token) {
+    if (!hay || !token) return false;
+    const h = norm(hay);
+    const t = norm(token);
+    if (h.includes(t)) return true;
+
+    // Common compound-word forms: gear box / gearbox / gear-box, name plate / nameplate.
+    const compactH = h.replace(/[\s\-_/]+/g,'');
+    const compactT = t.replace(/[\s\-_/]+/g,'');
+    return compactT.length >= 3 && compactH.includes(compactT);
+  }
+
+  function detailCoverage(q, hay) {
+    const details = queryDetailTokens(q);
+    if (!details.length) return {matched:0,total:0,ratio:1};
+    let matched = 0;
+    for (const t of details) if (tokenPresentFlexible(hay,t)) matched++;
+    return {matched,total:details.length,ratio:matched/details.length};
+  }
+
+  function focusedSnippet(q, text) {
+    const raw = String(text || '').replace(/\s+/g,' ').trim();
+    if (!raw) return '';
+    const low = raw.toLowerCase();
+    const details = queryDetailTokens(q);
+    const tokens = details.length ? details : queryTokens(q);
+
+    let pos = -1;
+    for (const t of tokens) {
+      const p = low.indexOf(t.toLowerCase());
+      if (p >= 0 && (pos < 0 || p < pos)) pos = p;
+    }
+    if (pos < 0) return '';
+
+    const start = Math.max(0,pos-90);
+    const end = Math.min(raw.length,pos+260);
+    let out = (start>0?'…':'') + raw.slice(start,end).trim() + (end<raw.length?'…':'');
+    return out.length>260 ? out.slice(0,260)+'…' : out;
+  }
+
   async function searchPrivateDocuments(q) {
     if (!backendSession || !client()) return [];
     const { data, error } = await client()
@@ -222,7 +270,18 @@
       for (let i = 1; i < parts.length; i += 2) {
         const pageNo = Number(parts[i]);
         const text = parts[i + 1] || '';
+        const pageHay = [text,d.file_name,dSection,(d.metadata && d.metadata.source_path) || ''].join(' ');
+        const coverage = detailCoverage(q,pageHay);
+        const hasDetails = coverage.total > 0;
+
+        // For descriptive multi-word queries, require at least one meaningful detail term
+        // in the same document/page. This prevents "turbine" alone from matching every turbine page.
+        if (hasDetails && coverage.matched === 0) continue;
+
         let score = pageMatches(text, tokens, q) + docBoost;
+        score += coverage.matched * 90;
+        if (coverage.ratio === 1 && coverage.total > 0) score += 180;
+
         const section = dSection;
         if (wantsPressureParts && section === 'pressure parts') score += 180;
         if (score > 0) {
@@ -236,7 +295,10 @@
             category: d.category,
             document_type: d.document_type,
             section: (d.metadata && d.metadata.section) || '',
-            source_path: (d.metadata && d.metadata.source_path) || ''
+            source_path: (d.metadata && d.metadata.source_path) || '',
+            detail_matched: coverage.matched,
+            detail_total: coverage.total,
+            detail_ratio: coverage.ratio
           });
         }
       }
@@ -618,27 +680,69 @@
     return best.label + ' : ' + best.value;
   }
   function renderPrivateHits(q, hits) {
-    let answer = (hits && hits[0] && hits[0].direct_answer) ? hits[0].direct_answer : '';
-    if (!answer) answer = equipmentVendorFromText(q, hits);
-    if (!answer) answer = equipmentVendorFromPath(q, hits);
-    if (!answer) answer = equipmentAnchoredFieldAnswer(q, hits);
-    if (!answer) answer = contextualFieldAnswer(q, hits);
-    if (!answer) {
-      for (const hit of hits) {
-        const candidate = oneLineFromHit(q, hit);
-        if (candidate && candidate.includes(' : ')) { answer = candidate; break; }
+    if (!hits || !hits.length) {
+      return '<div class="card result compactresult"><div class="onelineanswer"><b>No exact plant-document match found.</b></div></div>';
+    }
+
+    let answer = '';
+    let answerHit = null;
+
+    if (hits[0].direct_answer) {
+      answer = hits[0].direct_answer;
+      answerHit = hits[0];
+    }
+
+    // Field/value questions can use the structured extractors.
+    const nq = norm(q);
+    const isFieldQuery = /(make|manufacturer|oem|model|type|speed|rpm|pressure|temperature|temp|capacity|flow|output|power|rating|current|amps|voltage|frequency|head|efficiency|npsh|diameter|material|serial)/.test(nq);
+
+    if (!answer && isFieldQuery) {
+      const vendor = equipmentVendorFromText(q,hits) || equipmentVendorFromPath(q,hits);
+      if (vendor) {
+        answer = vendor;
+        answerHit = hits.find(h => {
+          const hay = [h.text,h.file_name,h.source_path,h.section].join(' ');
+          const c = detailCoverage(q,hay);
+          return c.total===0 || c.matched>0;
+        }) || hits[0];
       }
     }
-    if (!answer) answer = oneLineFromHit(q, hits[0]);
 
-    const top = hits && hits[0] ? hits[0] : null;
-    const view = top && top.id
-      ? '<div class="result-actions"><button onclick="viewDocument(\'' + top.id + '\')">View related document</button></div>'
+    if (!answer && isFieldQuery) {
+      const structured = equipmentAnchoredFieldAnswer(q,hits) || contextualFieldAnswer(q,hits);
+      if (structured) {
+        answer = structured;
+        answerHit = hits[0];
+      }
+    }
+
+    // For non-field queries, do NOT show an arbitrary page beginning.
+    // Return a focused snippet from the same strong hit that will be opened by View.
+    if (!answer) {
+      const strongHit = hits.find(h => {
+        if (!h.detail_total) return true;
+        return h.detail_matched > 0;
+      });
+
+      if (strongHit) {
+        const snippet = focusedSnippet(q,strongHit.text);
+        if (snippet) {
+          answer = snippet;
+          answerHit = strongHit;
+        }
+      }
+    }
+
+    if (!answer || !answerHit) {
+      return '<div class="card result compactresult"><div class="onelineanswer"><b>No exact plant-document match found.</b></div></div>';
+    }
+
+    const view = answerHit.id
+      ? '<div class="result-actions"><button onclick="viewDocument(\'' + answerHit.id + '\')">View related document</button></div>'
       : '';
 
     return '<div class="card result compactresult"><div class="onelineanswer"><b>' + esc(answer) + '</b></div>' + view + '</div>';
   }
-
   function matchesEquipmentSection(d, sectionName) {
     const name = norm(d.file_name || '');
     const type = norm(d.document_type || '');
