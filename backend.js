@@ -139,9 +139,10 @@
     const nq = norm(q);
 
     if (nq === 'turbine speed' || nq.includes('rated speed')) {
-      const rated = text.match(/Rated Speed\s*:?\s*([0-9.]+)\s*RPM/i);
-      const trip = text.match(/Trip Speed\s*:?\s*([0-9.]+)\s*RPM/i);
-      if (rated) return 'Rated turbine speed: ' + rated[1] + ' RPM' + (trip ? '; trip speed: ' + trip[1] + ' RPM' : '');
+      const rated = text.match(/Rated Speed\s*:?\s*([0-9][0-9\s,.]*)\s*RPM/i);
+      const trip = text.match(/Trip Speed\s*:?\s*([0-9][0-9\s,.]*)\s*RPM/i);
+      const cleanNum = v => String(v || '').replace(/[\s,]/g,'').trim();
+      if (rated) return 'Rated turbine speed: ' + cleanNum(rated[1]) + ' RPM' + (trip ? '; trip speed: ' + cleanNum(trip[1]) + ' RPM' : '');
     }
 
     const tokens = queryTokens(q);
