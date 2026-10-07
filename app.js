@@ -1,5 +1,5 @@
 
-const equipment=['CFBC Boiler','Steam Turbine','Air Cooled Condenser','ESP','CHP','AHS','WTP / ETP','Cooling Tower','Electrical','C&I'];
+const equipment=['CFBC Boiler','Steam Turbine','Air Cooled Condenser','CHP','AHS','WTP / ETP','Cooling Tower','Electrical','C&I'];
 
 const sampleDocs=[];
 
@@ -440,7 +440,7 @@ function searchAll(){
 
 
 const categories=[
- 'CFBC Boiler','Steam Turbine','Air Cooled Condenser','ESP','CHP','AHS',
+ 'CFBC Boiler','Steam Turbine','Air Cooled Condenser','CHP','AHS',
  'WTP / ETP','Cooling Tower','Electrical','C&I','Operations','General'
 ];
 
