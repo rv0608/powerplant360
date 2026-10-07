@@ -169,6 +169,28 @@
     return null;
   }
 
+  function queryEquipmentCategory(q) {
+    const nq = norm(q);
+    const routes = [
+      {category:'Steam Turbine', terms:['steam turbine','turbine','governor','turbine gear','gear box','gearbox']},
+      {category:'CFBC Boiler', terms:['cfbc','boiler','pa fan','sa fan','id fan','bfp','bfw pump','superheater','economiser','economizer','evaporator','steam drum']},
+      {category:'Air Cooled Condenser', terms:['acc','air cooled condenser']},
+      {category:'ESP', terms:['esp','electrostatic precipitator']},
+      {category:'CHP', terms:['chp','coal handling']},
+      {category:'AHS', terms:['ahs','ash handling']},
+      {category:'WTP / ETP', terms:['wtp','etp','water treatment','effluent treatment']},
+      {category:'Cooling Tower', terms:['cooling tower']},
+      {category:'Electrical', terms:['transformer','generator','switchgear','electrical']},
+      {category:'C&I', terms:['c&i','instrument','transmitter','dcs','plc']}
+    ];
+    return routes.find(r => r.terms.some(t => nq.includes(t)))?.category || '';
+  }
+
+  function technicalDataIntent(q) {
+    const nq = norm(q);
+    return /(make|manufacturer|oem|model|type|speed|rpm|pressure|temperature|temp|capacity|flow|output|power|rating|current|amps|voltage|frequency|head|efficiency|npsh|diameter|material|serial|gear|gearbox|gear box|bearing|coupling)/.test(nq);
+  }
+
   function queryDetailTokens(q) {
     const generic = new Set([
       'what','is','the','of','for','show','give','please','data','details','detail',
@@ -230,6 +252,8 @@
     if (!tokens.length) return [];
 
     const explicitVendor = findExplicitEquipmentVendor(q, data);
+    const routedCategory = queryEquipmentCategory(q);
+    const wantsTechnicalData = technicalDataIntent(q);
 
     const pressurePartTerms = ['panel','pressure part','tube','coil','header','superheater','economiser','economizer','evaporator','water wall','drum','downcomer','riser','sh','economiser coil','economizer coil'];
     const wantsPressureParts = pressurePartTerms.some(t => norm(q).includes(t));
@@ -243,6 +267,19 @@
       const qn = norm(q);
 
       let docBoost = 0;
+
+      // Route equipment questions to their own document set first.
+      if (routedCategory) {
+        if (norm(routedCategory) === dCategory) docBoost += 500;
+        else docBoost -= 250;
+      }
+
+      // For equipment-detail questions prefer datasheets / technical-data documents.
+      if (wantsTechnicalData) {
+        const techHay = [dType,dSection,dName,(d.metadata && d.metadata.source_path) || ''].join(' ');
+        if (/technical data|datasheet|data sheet|design specification|specification|nameplate/.test(techHay)) docBoost += 320;
+      }
+
       if (dCategory && qn.includes(dCategory)) docBoost += 140;
 
       const sectionRules = [
@@ -276,11 +313,19 @@
 
         // For descriptive multi-word queries, require at least one meaningful detail term
         // in the same document/page. This prevents "turbine" alone from matching every turbine page.
-        if (hasDetails && coverage.matched === 0) continue;
+        const routedTechDoc = routedCategory &&
+          norm(routedCategory) === dCategory &&
+          wantsTechnicalData &&
+          /technical data|datasheet|data sheet|design specification|specification|nameplate/.test(
+            [dType,dSection,dName,(d.metadata && d.metadata.source_path) || ''].join(' ')
+          );
+
+        if (hasDetails && coverage.matched === 0 && !routedTechDoc) continue;
 
         let score = pageMatches(text, tokens, q) + docBoost;
         score += coverage.matched * 90;
         if (coverage.ratio === 1 && coverage.total > 0) score += 180;
+        if (routedTechDoc) score += 220;
 
         const section = dSection;
         if (wantsPressureParts && section === 'pressure parts') score += 180;
@@ -719,10 +764,14 @@
     // For non-field queries, do NOT show an arbitrary page beginning.
     // Return a focused snippet from the same strong hit that will be opened by View.
     if (!answer) {
-      const strongHit = hits.find(h => {
-        if (!h.detail_total) return true;
-        return h.detail_matched > 0;
-      });
+      const routedCategory = queryEquipmentCategory(q);
+      const strongHit =
+        hits.find(h => routedCategory && norm(h.category || '') === norm(routedCategory) && h.detail_matched > 0) ||
+        hits.find(h => routedCategory && norm(h.category || '') === norm(routedCategory) && /technical data|datasheet|specification/i.test([h.document_type,h.section,h.file_name,h.source_path].join(' '))) ||
+        hits.find(h => {
+          if (!h.detail_total) return true;
+          return h.detail_matched > 0;
+        });
 
       if (strongHit) {
         const snippet = focusedSnippet(q,strongHit.text);
