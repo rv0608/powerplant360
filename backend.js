@@ -182,6 +182,59 @@
     return defs.find(d => d.terms.some(t => nq.includes(t))) || null;
   }
 
+  function isExcludedSubEquipmentDocument(q, subEquipment, d) {
+    if (!subEquipment) return false;
+    const nq = norm(q);
+    const hay = norm([
+      d.file_name,
+      d.document_type,
+      (d.metadata && d.metadata.section) || '',
+      (d.metadata && d.metadata.source_path) || ''
+    ].join(' '));
+
+    if (subEquipment.key === 'BFP') {
+      const asksMotor = /\bmotor\b/.test(nq);
+      const asksRtd = /\brtd\b|temperature sensor|vsf/.test(nq);
+
+      if (!asksMotor && /bfw pump motor|bfp motor|motor datasheet|motor/.test(hay)) return true;
+      if (!asksRtd && /rtd|vsf brg|vsfc brg/.test(hay)) return true;
+
+      // For pump mechanical queries, prefer the pump manual / technical documents.
+      if (/bearing|seal|shaft|impeller|coupling|stage|npsh|head/.test(nq)) {
+        if (/electrical|ems2|logic|p&id|pid/.test(hay)) return true;
+      }
+    }
+    return false;
+  }
+
+  function preferredSubEquipmentReference(q, subEquipment, documents) {
+    if (!subEquipment) return null;
+    const nq = norm(q);
+    const isBfpMechanical = subEquipment.key === 'BFP' && /bearing|seal|shaft|impeller|coupling|stage|npsh|head/.test(nq);
+    if (!isBfpMechanical) return null;
+
+    const ranked = (documents || [])
+      .filter(d => !isExcludedSubEquipmentDocument(q, subEquipment, d))
+      .map(d => {
+        const hay = norm([
+          d.file_name,
+          d.document_type,
+          (d.metadata && d.metadata.section) || '',
+          (d.metadata && d.metadata.source_path) || ''
+        ].join(' '));
+        let score = 0;
+        if (/operation instruction.*manual for pump|manual for pump|pump manual/.test(hay)) score += 500;
+        if (/technical documents|technical data|datasheet/.test(hay)) score += 450;
+        if (/ksb/.test(hay)) score += 120;
+        if (/bfp|bfw pump|boiler feed pump/.test(hay)) score += 100;
+        return {d,score};
+      })
+      .filter(x => x.score > 0)
+      .sort((a,b)=>b.score-a.score);
+
+    return ranked.length ? ranked[0].d : null;
+  }
+
   function queryEquipmentCategory(q) {
     const nq = norm(q);
     const routes = [
@@ -435,6 +488,8 @@
 
     const hits = [];
     for (const d of data) {
+      if (isExcludedSubEquipmentDocument(q, subEquipment, d)) continue;
+
       const dSection = norm((d.metadata && d.metadata.section) || '');
       const dName = norm(d.file_name || '');
       const dType = norm(d.document_type || '');
@@ -544,6 +599,29 @@
       }
     }
     const ranked = hits.sort((a,b)=>b.score-a.score).slice(0,30);
+
+    if (!ranked.length && subEquipment) {
+      const preferred = preferredSubEquipmentReference(q, subEquipment, data);
+      if (preferred) {
+        ranked.push({
+          score: 90000,
+          direct_answer: subEquipment.key + ' : Exact data not found in searchable text. Open the pump manual / technical document.',
+          id: preferred.id,
+          storage_path: preferred.storage_path,
+          file_name: preferred.file_name,
+          page: null,
+          text: '',
+          category: preferred.category,
+          document_type: preferred.document_type,
+          section: (preferred.metadata && preferred.metadata.section) || '',
+          source_path: (preferred.metadata && preferred.metadata.source_path) || '',
+          detail_matched: 0,
+          detail_total: 1,
+          detail_ratio: 0
+        });
+      }
+    }
+
     if (explicitVendor) {
       ranked.unshift({
         score: 100000,
