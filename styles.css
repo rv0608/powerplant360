@@ -181,3 +181,6 @@ details p{margin:9px 0 2px;line-height:1.55}
 .usage-fill.danger{background:#ef4444}
 @media (max-width:900px){.usage-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media (max-width:560px){.usage-grid{grid-template-columns:1fr}.usage-title{align-items:flex-start;flex-direction:column}}
+
+
+.admin-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
