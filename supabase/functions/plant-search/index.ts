@@ -154,6 +154,7 @@ function estimateCostUsd(u:any) {
 }
 
 async function webFallback(openaiKey:string, model:string, question:string, scope:string) {
+  const regulatory = isRegulatoryQuery(question);
   const webInstructions = `
 You are PowerPlant360, a thermal power-plant engineering assistant.
 The selected department is: ${scope}.
@@ -164,9 +165,9 @@ Rules:
 - Never claim an online value is this plant's actual value.
 - If the question asks for a plant-specific make, model, setting, rating, serial number, exact design value, or exact operating limit, state that the plant-specific value is not verified and then give only useful general context if available.
 - Prefer manufacturer/OEM documentation, standards bodies, government/academic sources, and established engineering references.
-- Return exactly ONE concise plain-text line that directly answers the question.
+- For ordinary questions: return exactly ONE concise plain-text line, normally under 35 words.
+- For regulatory/limit/standard/norm/emission questions: return 2–4 plain-text parameter lines, each in "Parameter : Value / condition" format. Put SO₂/SOx, NOx, PM, and Applicability on separate lines when relevant.
 - Do not use bullets, markdown, headings, bold markers, tables, inline URLs, or source names in the answer text.
-- Keep the line practical and normally under 35 words.
 - Source links will be shown separately by the app.
 - If the question asks about limits, standards, norms, CPCB/MoEFCC, SO₂/SOx, NOx, PM or emissions, prioritize official Indian sources such as CPCB and MoEFCC over secondary sites.
 - For such regulatory questions, include the applicability condition in the same line (for example commissioning period, unit size/capacity, fuel/category, or rule/amendment) whenever the source provides it.
@@ -184,7 +185,7 @@ Rules:
       instructions:webInstructions,
       tools:[{ type:"web_search", search_context_size:"medium" }],
       tool_choice:"auto",
-      input:`Department: ${scope}\nRegulatory/limit question: ${isRegulatoryQuery(question) ? "yes" : "no"}\nQuestion: ${question}`
+      input:`Department: ${scope}\nRegulatory/limit question: ${regulatory ? "yes" : "no"}\nQuestion: ${question}`
     })
   });
 
@@ -196,23 +197,46 @@ Rules:
 
   const payload = await res.json();
   const answer = extractResponseText(payload).trim();
-  const cleanLine = answer
+
+  const cleanWebLine = (value:string) => String(value || "")
     .replace(/\[[^\]]+\]\([^\)]+\)/g, "")
     .replace(/https?:\/\/\S+/g, "")
     .replace(/【[^】]+】/g, "")
     .replace(/\[(?:source\s*)?\d+\]/gi, "")
     .replace(/\((?:source\s*)?\d+\)/gi, "")
     .replace(/[\uE000-\uF8FF]/g, "")
-    .replace(/[\*_#>~-]+/g, "")
+    .replace(/^[\s•*-]+/, "")
+    .replace(/[\*_#>~]+/g, "")
     .replace(/\s+/g, " ")
     .replace(/\s+0\s*$/g, "")
     .trim();
 
+  let answerLines:string[] = [];
+
+  if (regulatory) {
+    answerLines = answer
+      .replace(/;\s*(?=(?:SO₂|SO2|SOx|NOx|NO₂|NO2|PM|Applicability)\s*:)/gi, "\n")
+      .split(/\n+/)
+      .map(cleanWebLine)
+      .filter(Boolean);
+
+    if (answerLines.length === 1) {
+      answerLines = answerLines[0]
+        .split(/\s+(?=(?:SO₂|SO2|SOx|NOx|NO₂|NO2|PM|Applicability)\s*:)/gi)
+        .map(cleanWebLine)
+        .filter(Boolean);
+    }
+  } else {
+    const cleanLine = cleanWebLine(answer);
+    answerLines = [cleanLine || "No reliable online reference found."];
+  }
+
   return {
-    answer_lines: [cleanLine || "No reliable online reference found."],
+    answer_lines: answerLines.length ? answerLines : ["No reliable online reference found."],
     sources: [],
     web_sources: collectWebSources(payload),
     source_type: "web",
+    display_mode: regulatory ? "parameter_lines" : "one_line",
     scope,
     __usage: usageFromResponse(payload, countWebSearchCalls(payload))
   };
