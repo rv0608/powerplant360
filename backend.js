@@ -21,6 +21,34 @@
     return window.pp360Supabase;
   }
 
+  function applySearchRoleUi() {
+    const btn = document.getElementById('plantSearchBtn');
+    const scopeEl = document.getElementById('scope');
+
+    if (btn) {
+      if (backendRole === 'admin') {
+        btn.textContent = 'Ask Plant AI';
+        btn.title = 'Plant documents first; online AI/web fallback if needed';
+      } else if (backendRole === 'engineer' || backendRole === 'viewer') {
+        btn.textContent = 'Search Plant Data';
+        btn.title = 'Search authorized plant documents only';
+      } else {
+        btn.textContent = 'Search';
+        btn.title = 'Search';
+      }
+    }
+
+    if (scopeEl) {
+      if (backendRole === 'admin') {
+        scopeEl.textContent = 'Authorized Admin mode: private plant documents + online AI search enabled.';
+      } else if (backendRole === 'engineer' || backendRole === 'viewer') {
+        scopeEl.textContent = 'Authorized Plant Data mode: private plant documents enabled. Online AI search is Admin only.';
+      } else {
+        scopeEl.textContent = 'Public mode: plant files require authorization.';
+      }
+    }
+  }
+
   async function refreshBackendRole() {
     admin = false;
     backendRole = null;
@@ -34,6 +62,7 @@
       backendRole = data.role;
       admin = data.role === 'admin';
     }
+    applySearchRoleUi();
   }
 
   async function restoreBackendSession() {
@@ -41,15 +70,11 @@
     const { data } = await client().auth.getSession();
     backendSession = data.session;
     await refreshBackendRole();
-    const scope = document.getElementById('scope');
-    if (scope) {
-      scope.textContent = admin
-        ? 'Authorized Admin mode: private plant documents enabled.'
-        : 'Public mode: built-in general engineering knowledge. Plant files require authorization.';
-    }
+    applySearchRoleUi();
     client().auth.onAuthStateChange(async (_event, newSession) => {
       backendSession = newSession;
       await refreshBackendRole();
+      applySearchRoleUi();
     });
   }
 
@@ -1677,8 +1702,7 @@
     backendRole = null;
     admin = false;
     docs = [];
-    document.getElementById('scope').textContent =
-      'Public mode: built-in general engineering knowledge. Plant files require authorization.';
+    applySearchRoleUi();
     show('Home');
   };
 
@@ -2398,11 +2422,16 @@
       if (btn) { btn.disabled = true; btn.textContent = 'Thinking…'; }
 
       renderTabs();
+      const canUseOnline = backendRole === 'admin';
       document.getElementById('view').innerHTML =
         '<div class="card result compactresult">' +
-          '<div class="ai-answer-badge">Plant AI</div>' +
-          '<div class="onelineanswer"><b>Searching ' + esc(scopeValue) + ' documents first…</b></div>' +
-          '<div class="muted small" style="margin-top:8px">If no verified plant-document answer is found, online references will be searched automatically.</div>' +
+          '<div class="ai-answer-badge">' + (canUseOnline ? 'Plant AI' : 'Plant Data') + '</div>' +
+          '<div class="onelineanswer"><b>Searching ' + esc(scopeValue) + ' documents…</b></div>' +
+          '<div class="muted small" style="margin-top:8px">' +
+            (canUseOnline
+              ? 'If no verified plant-document answer is found, online references will be searched automatically.'
+              : 'Plant documents only. Online AI/web search is available to Admin only.') +
+          '</div>' +
         '</div>';
 
       const { data: sessionData } = await client().auth.getSession();
@@ -2450,7 +2479,10 @@
         '<div class="card result compactresult"><div class="ai-answer-badge">Plant AI error</div>' +
         '<div class="notice"><b>Plant AI could not complete this search.</b><br>' + esc(safeMessage) + '</div></div>';
     } finally {
-      if (btn) { btn.disabled = false; btn.textContent = oldText || 'Ask Plant AI'; }
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = oldText || (backendRole === 'admin' ? 'Ask Plant AI' : 'Search Plant Data');
+      }
     }
   };
 
