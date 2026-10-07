@@ -585,13 +585,17 @@
     };
   }
 
-  async function searchPrivateDocuments(q) {
+  async function searchPrivateDocuments(q, forcedScope='') {
     if (!backendSession || !client()) return [];
-    const { data, error } = await client()
+    let query = client()
       .from('documents')
       .select('id,file_name,storage_path,category,document_type,processing_status,extracted_text,page_count,metadata')
       .eq('processing_status', 'ready')
       .not('extracted_text', 'is', null);
+
+    if (forcedScope) query = query.eq('category', forcedScope);
+
+    const { data, error } = await query;
     if (error || !data) return [];
 
     const tokens = queryTokens(q);
@@ -2194,7 +2198,8 @@
     localStorage.setItem('pp360history', JSON.stringify(history));
 
     if (backendSession && backendRole && ['admin','engineer','viewer'].includes(backendRole)) {
-      const hits = await searchPrivateDocuments(raw);
+      const forcedScope = document.getElementById('searchScope')?.value || '';
+      const hits = await searchPrivateDocuments(raw, forcedScope);
       if (hits.length) {
         renderTabs();
         document.getElementById('view').innerHTML = renderPrivateHits(raw, hits);
@@ -2242,6 +2247,14 @@
 
     const scopeValue = document.getElementById('searchScope')?.value || '';
     const btn = document.getElementById('plantSearchBtn');
+
+    if (!scopeValue) {
+      renderTabs();
+      document.getElementById('view').innerHTML =
+        '<div class="card result compactresult"><div class="onelineanswer"><b>Please select a department first.</b></div></div>';
+      document.getElementById('searchScope')?.focus();
+      return;
+    }
     const oldText = btn ? btn.textContent : '';
 
     // Public users continue to use the built-in/public search.
@@ -2264,7 +2277,7 @@
           'Authorization':'Bearer ' + token,
           'apikey':cfg.supabaseKey
         },
-        body:JSON.stringify({question:raw, scope:scopeValue || null})
+        body:JSON.stringify({question:raw, scope:scopeValue})
       });
 
       if (!res.ok) throw new Error('RAG endpoint unavailable: ' + res.status);
