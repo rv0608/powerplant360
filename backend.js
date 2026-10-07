@@ -169,6 +169,11 @@
     return null;
   }
 
+  function isBedMaterialQuery(q) {
+    const nq = norm(q);
+    return /\bbed material\b/.test(nq) || /\bbed ash\b/.test(nq);
+  }
+
   function querySubEquipment(q) {
     const nq = norm(q);
     const defs = [
@@ -239,7 +244,7 @@
     const nq = norm(q);
     const routes = [
       {category:'Steam Turbine', terms:['steam turbine','turbine','governor','turbine gear','gear box','gearbox']},
-      {category:'CFBC Boiler', terms:['cfbc','boiler','pa fan','sa fan','id fan','bfp','bfw pump','superheater','economiser','economizer','evaporator','steam drum']},
+      {category:'CFBC Boiler', terms:['cfbc','boiler','bed material','bed ash','pa fan','sa fan','id fan','bfp','bfw pump','superheater','economiser','economizer','evaporator','steam drum']},
       {category:'Air Cooled Condenser', terms:['acc','air cooled condenser']},
       {category:'ESP', terms:['esp','electrostatic precipitator']},
       {category:'CHP', terms:['chp','coal handling']},
@@ -254,7 +259,7 @@
 
   function technicalDataIntent(q) {
     const nq = norm(q);
-    return /(make|manufacturer|oem|model|type|speed|rpm|pressure|temperature|temp|capacity|flow|output|power|rating|current|amps|voltage|frequency|head|efficiency|npsh|diameter|material|serial|gear|gearbox|gear box|bearing|coupling)/.test(nq);
+    return /(make|manufacturer|oem|model|type|speed|rpm|pressure|temperature|temp|capacity|flow|output|power|rating|current|amps|voltage|frequency|head|efficiency|npsh|density|bulk density|diameter|material|serial|gear|gearbox|gear box|bearing|coupling)/.test(nq);
   }
 
   function queryDetailTokens(q) {
@@ -498,6 +503,12 @@
 
       let docBoost = 0;
 
+      if (isBedMaterialQuery(q)) {
+        const bedHay = [dName,dType,dSection,(d.metadata && d.metadata.source_path) || ''].join(' ');
+        if (/design specification|technical data|specification|operation|description/.test(bedHay)) docBoost += 650;
+        if (/rav|rotary air valve|motor|actuator|valve|instrument|junction box/.test(bedHay)) docBoost -= 900;
+      }
+
       // Route sub-equipment questions (BFP, PA/SA/ID Fan, etc.) to their own files first.
       if (subEquipment) {
         const subHay = [dName,dType,dSection,(d.metadata && d.metadata.source_path) || ''].join(' ');
@@ -536,7 +547,7 @@
         {terms:['fan','pump','valve','feeder','motor','actuator','burner','esp','cems','swas'], sections:['vendor manuals / auxiliaries']},
         {terms:['operation','startup','shutdown','loading'], sections:['operation']},
         {terms:['maintenance','maintainance','lubrication','spare'], sections:['maintenance']},
-        {terms:['design','specification','technical data','datasheet'], sections:['technical data']},
+        {terms:['design','specification','technical data','datasheet','density','bulk density','bed material'], sections:['technical data']},
         {terms:['description'], sections:['description']}
       ];
       for (const r of sectionRules) {
@@ -657,6 +668,7 @@
       {terms:['head'], labels:['Rated Head','Head']},
       {terms:['efficiency'], labels:['Efficiency']},
       {terms:['npsh','npshr'], labels:['NPSHr','NPSH']},
+      {terms:['density','bulk density'], labels:['Bed Material Density','Bulk Density','Density']},
       {terms:['diameter','dia'], labels:['Diameter','Dia']},
       {terms:['material'], labels:['Material']},
       {terms:['make','manufacturer','oem'], labels:['Make','Manufacturer','OEM']},
@@ -679,6 +691,7 @@
     }
 
     for (const group of groups) {
+      if (group.terms.includes('material') && /density|bulk density/.test(nq)) continue;
       if (group.terms.some(term => nq.includes(term))) {
         for (const label of group.labels) {
           const result = extract(label);
@@ -927,6 +940,7 @@
       {terms:['head'], labels:['Rated Head','Head']},
       {terms:['efficiency'], labels:['Efficiency']},
       {terms:['npsh','npshr'], labels:['NPSHr','NPSH']},
+      {terms:['density','bulk density'], labels:['Bed Material Density','Bulk Density','Density']},
       {terms:['diameter','dia'], labels:['Diameter','Dia']},
       {terms:['material'], labels:['Material']},
       {terms:['serial','sr no','sr number'], labels:['Sr. Number','Serial Number','Sr No']}
@@ -935,6 +949,7 @@
     if (!def) return '';
 
     const stop = new Set(['what','is','the','of','for','data','value','details','detail','rated','show','give','please']);
+    if (def.terms.includes('density') || def.terms.includes('bulk density')) stop.add('material');
     def.terms.forEach(t => t.split(' ').forEach(w => stop.add(w)));
     const subjects = nq.split(' ').filter(w => w.length > 2 && !stop.has(w));
     const allLabels = defs.flatMap(d => d.labels).sort((a,b)=>b.length-a.length);
@@ -1034,7 +1049,7 @@
 
     // Field/value questions can use the structured extractors.
     const nq = norm(q);
-    const isFieldQuery = /(make|manufacturer|oem|model|type|speed|rpm|pressure|temperature|temp|capacity|flow|output|power|rating|current|amps|voltage|frequency|head|efficiency|npsh|diameter|material|serial)/.test(nq);
+    const isFieldQuery = /(make|manufacturer|oem|model|type|speed|rpm|pressure|temperature|temp|capacity|flow|output|power|rating|current|amps|voltage|frequency|head|efficiency|npsh|density|bulk density|diameter|material|serial)/.test(nq);
 
     if (!answer && isFieldQuery) {
       const vendor = equipmentVendorFromText(q,hits) || equipmentVendorFromPath(q,hits);
