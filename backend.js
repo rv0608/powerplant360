@@ -218,8 +218,21 @@
     const escRe = v => v.replace(/[.*+?^()|[\]\\]/g,'\\$&');
     const stopAlt = allLabels.map(escRe).join('|');
 
+    const subjectHits = subjects.length ? hits.filter(hit => {
+      const low = (hit.text || '').toLowerCase();
+      return subjects.some(subject =>
+        low.includes(subject + ' specifications') ||
+        low.includes(subject + ' specification') ||
+        low.includes(subject + ' technical data') ||
+        low.includes(subject + ' data')
+      );
+    }) : [];
+
+    const orderedHits = subjectHits.length
+      ? [...subjectHits, ...hits.filter(h => !subjectHits.includes(h))]
+      : hits;
     let best = null;
-    for (const hit of hits) {
+    for (const hit of orderedHits) {
       const text = (hit.text || '').replace(/\s+/g,' ').trim();
       const lower = text.toLowerCase();
       for (const label of def.labels) {
@@ -229,6 +242,7 @@
           let value = (m[1] || '').trim().replace(/[.,;]+$/,'').trim();
           if (!value || value.length > 70) continue;
           let score = Number(hit.score || 0);
+          if (subjectHits.includes(hit)) score += 150;
           const idx = m.index;
           const before = lower.slice(Math.max(0, idx - 350), idx);
           const around = lower.slice(Math.max(0, idx - 180), Math.min(lower.length, idx + 180));
