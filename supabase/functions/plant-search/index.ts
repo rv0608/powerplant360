@@ -108,6 +108,47 @@ function isNoExact(lines:any) {
   return list.every((x:any) => /no exact plant-document match found/i.test(String(x || "")));
 }
 
+function countWebSearchCalls(payload:any) {
+  return (payload?.output || []).filter((x:any) =>
+    String(x?.type || "").toLowerCase().includes("web_search_call")
+  ).length;
+}
+
+function usageFromResponse(payload:any, webSearchCalls=0) {
+  const u = payload?.usage || {};
+  return {
+    input_tokens: Number(u?.input_tokens || 0),
+    cached_input_tokens: Number(u?.input_tokens_details?.cached_tokens || 0),
+    output_tokens: Number(u?.output_tokens || 0),
+    web_search_calls: Number(webSearchCalls || 0)
+  };
+}
+
+function combineUsage(...items:any[]) {
+  return items.reduce((a:any, x:any) => ({
+    input_tokens:a.input_tokens + Number(x?.input_tokens || 0),
+    cached_input_tokens:a.cached_input_tokens + Number(x?.cached_input_tokens || 0),
+    output_tokens:a.output_tokens + Number(x?.output_tokens || 0),
+    web_search_calls:a.web_search_calls + Number(x?.web_search_calls || 0)
+  }), {input_tokens:0,cached_input_tokens:0,output_tokens:0,web_search_calls:0});
+}
+
+// Conservative list-rate estimate used by the Admin dashboard.
+// Actual OpenAI Billing remains authoritative.
+function estimateCostUsd(u:any) {
+  const input = Number(u?.input_tokens || 0);
+  const cached = Math.min(input, Number(u?.cached_input_tokens || 0));
+  const uncached = Math.max(0, input - cached);
+  const output = Number(u?.output_tokens || 0);
+  const web = Number(u?.web_search_calls || 0);
+  return (
+    (uncached * 0.10 / 1_000_000) +
+    (cached * 0.01 / 1_000_000) +
+    (output * 0.50 / 1_000_000) +
+    (web * 0.01)
+  );
+}
+
 async function webFallback(openaiKey:string, model:string, question:string, scope:string) {
   const webInstructions = `
 You are PowerPlant360, a thermal power-plant engineering assistant.
@@ -158,7 +199,8 @@ Rules:
     sources: [],
     web_sources: collectWebSources(payload),
     source_type: "web",
-    scope
+    scope,
+    __usage: usageFromResponse(payload, countWebSearchCalls(payload))
   };
 }
 
@@ -189,6 +231,30 @@ Deno.serve(async (req) => {
     if (userError || !userData?.user) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { ...corsHeaders, "Content-Type":"application/json" }});
     }
+
+    let adminKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+    try {
+      const keys = JSON.parse(Deno.env.get("SUPABASE_SECRET_KEYS") || "{}");
+      adminKey = keys?.default || adminKey;
+    } catch (_) {}
+    const supabaseAdmin = adminKey ? createClient(supabaseUrl, adminKey) : null;
+
+    const recordUsage = async (usage:any, sourceType:string, scopeValue:string) => {
+      if (!supabaseAdmin || !usage) return;
+      const row = {
+        user_id:userData.user.id,
+        scope:scopeValue,
+        source_type:sourceType,
+        model,
+        input_tokens:Number(usage.input_tokens || 0),
+        cached_input_tokens:Number(usage.cached_input_tokens || 0),
+        output_tokens:Number(usage.output_tokens || 0),
+        web_search_calls:Number(usage.web_search_calls || 0),
+        estimated_cost_usd:Number(estimateCostUsd(usage).toFixed(6))
+      };
+      const { error: usageError } = await supabaseAdmin.from("api_usage").insert(row);
+      if (usageError) console.error("api_usage insert failed", usageError.message);
+    };
 
     const body = await req.json().catch(() => ({}));
     const question = String(body?.question || "").trim();
@@ -243,6 +309,8 @@ Deno.serve(async (req) => {
     if (error) throw error;
     if (!docs?.length) {
       const online = await webFallback(openaiKey, model, question, scope);
+      await recordUsage(online.__usage, "web", scope);
+      delete online.__usage;
       return new Response(JSON.stringify(online), {
         headers:{ ...corsHeaders, "Content-Type":"application/json" }
       });
@@ -273,6 +341,8 @@ Deno.serve(async (req) => {
 
     if (!top.length) {
       const online = await webFallback(openaiKey, model, question, scope);
+      await recordUsage(online.__usage, "web", scope);
+      delete online.__usage;
       return new Response(JSON.stringify(online), {
         headers:{ ...corsHeaders, "Content-Type":"application/json" }
       });
@@ -320,6 +390,7 @@ source_indices must contain only the source numbers that directly support the an
     }
 
     const ai = await aiRes.json();
+    const plantUsage = usageFromResponse(ai, 0);
     const raw = extractResponseText(ai).trim();
     let parsed:any;
     try {
@@ -348,10 +419,14 @@ source_indices must contain only the source numbers that directly support the an
     const answerLines = Array.isArray(parsed?.answer_lines) ? parsed.answer_lines : [];
     if (isNoExact(answerLines)) {
       const online = await webFallback(openaiKey, model, question, scope);
+      await recordUsage(online.__usage, "web", scope);
+      delete online.__usage;
       return new Response(JSON.stringify(online), {
         headers:{ ...corsHeaders, "Content-Type":"application/json" }
       });
     }
+
+    await recordUsage(plantUsage, "plant", scope);
 
     return new Response(JSON.stringify({
       answer_lines:answerLines,
