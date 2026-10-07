@@ -159,3 +159,7 @@ details p{margin:9px 0 2px;line-height:1.55}
 .plantanswer{background:var(--soft);border:1px solid var(--line);border-radius:14px;padding:16px;margin:14px 0}
 .plantanswer-title{font-weight:800;margin-bottom:8px}
 .relatedhits details{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:8px 0}
+
+.compactresult{padding:14px 16px}
+.onelineanswer{font-size:1.05rem;line-height:1.5}
+.onelinesource{font-weight:400;color:var(--muted);font-size:.92rem}
