@@ -290,6 +290,114 @@
     return '<div class="card result compactresult"><div class="onelineanswer"><b>' + esc(answer) + '</b></div></div>';
   }
 
+  function matchesEquipmentSection(d, sectionName) {
+    const name = norm(d.file_name || '');
+    const type = norm(d.document_type || '');
+    const section = norm((d.metadata && d.metadata.section) || '');
+    const path = norm((d.metadata && d.metadata.source_path) || '');
+    const hay = [name,type,section,path].join(' ');
+
+    if (sectionName === 'Documents') return true;
+    if (sectionName === 'O&M Manuals') {
+      return /o&m|o & m|manual|operation|maintenance|maintainance|vendor manual|description/.test(hay);
+    }
+    if (sectionName === 'Technical Data') {
+      return /technical data|datasheet|data sheet|design specification|specification|nameplate/.test(hay);
+    }
+    if (sectionName === 'Nameplate') {
+      return /nameplate/.test(hay);
+    }
+    if (sectionName === 'Interlocks') {
+      return /interlock|permissive|logic|cause effect|bms|plc/.test(hay);
+    }
+    if (sectionName === 'SOP') {
+      return /sop|standard operating|procedure/.test(hay);
+    }
+    if (sectionName === 'Startup / Loading Curves') {
+      return /startup|start up|loading curve|load curve|performance curve|fan curve|pump curve/.test(hay);
+    }
+    if (sectionName === 'Troubleshooting') {
+      return /troubleshoot|fault|failure|problem|maintenance|inspection/.test(hay);
+    }
+    if (sectionName === 'Notes') {
+      return /note|record|inspection|maintenance record/.test(hay);
+    }
+    return false;
+  }
+
+  function equipmentSectionLabel(d) {
+    const section = (d.metadata && d.metadata.section) || '';
+    if (section) return section;
+    return d.document_type || 'Other';
+  }
+
+  window.renderEquipmentDocuments = async function(category, sectionName) {
+    const v = document.getElementById('view');
+    if (!v) return;
+
+    v.innerHTML = `<div class="card">
+      <span class="badge">${esc(category)}</span>
+      <h2>${esc(sectionName)}</h2>
+      <p class="muted">Loading uploaded plant documents…</p>
+    </div>`;
+
+    if (!backendSession || !client()) {
+      v.innerHTML = `<div class="card"><span class="badge">${esc(category)}</span><h2>${esc(sectionName)}</h2><div class="notice">Please sign in as Admin to view private plant documents.</div></div>`;
+      return;
+    }
+
+    const { data, error } = await client()
+      .from('documents')
+      .select('*')
+      .eq('category', category)
+      .order('file_name', { ascending:true });
+
+    if (error) {
+      v.innerHTML = `<div class="card"><span class="badge">${esc(category)}</span><h2>${esc(sectionName)}</h2><div class="notice">Could not load documents: ${esc(error.message)}</div></div>`;
+      return;
+    }
+
+    const all = data || [];
+    const filtered = all.filter(d => matchesEquipmentSection(d, sectionName));
+    const groups = {};
+    for (const d of filtered) {
+      const key = equipmentSectionLabel(d);
+      (groups[key] ||= []).push(d);
+    }
+
+    const groupHtml = Object.entries(groups)
+      .sort((x,y)=>x[0].localeCompare(y[0]))
+      .map(([group,items]) => `
+        <details class="docgroup" open>
+          <summary><b>${esc(group)}</b> <span class="muted">(${items.length})</span></summary>
+          <div class="equipment-doc-list">
+            ${items.map(d=>`
+              <div class="equipment-doc-row">
+                <div class="equipment-doc-main">
+                  <b>${esc(d.file_name)}</b>
+                  <div class="muted small">${esc(d.document_type || 'Other')} • ${formatBytes(d.file_size || 0)}${d.page_count ? ' • '+d.page_count+' pages' : ''}</div>
+                </div>
+                <div class="actions">
+                  <button onclick="viewDocument('${d.id}')">View</button>
+                </div>
+              </div>`).join('')}
+          </div>
+        </details>`).join('');
+
+    v.innerHTML = `<div class="card">
+      <div class="equipment-doc-head">
+        <div>
+          <span class="badge">${esc(category)}</span>
+          <h2>${esc(sectionName)}</h2>
+          <p class="muted">${filtered.length} matching document${filtered.length===1?'':'s'} from ${all.length} uploaded for this equipment.</p>
+        </div>
+        <button onclick="equipmentPage('${String(category).replace(/'/g,"\\'")}')">Back</button>
+      </div>
+      ${filtered.length ? groupHtml : '<div class="notice">No matching documents found in this section yet. Use <b>Documents</b> to view all uploaded files for this equipment.</div>'}
+    </div>`;
+  };
+
+
   window.hardRefreshPP360 = async function () {
     try {
       if ('serviceWorker' in navigator) {
