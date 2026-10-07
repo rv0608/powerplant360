@@ -108,6 +108,10 @@ function isNoExact(lines:any) {
   return list.every((x:any) => /no exact plant-document match found/i.test(String(x || "")));
 }
 
+function isRegulatoryQuery(q:string) {
+  return /\b(limit|limits|standard|standards|norm|norms|cpcb|moef|moefcc|emission|emissions|sox|so2|nox|no2|pm|particulate)\b/i.test(q);
+}
+
 function countWebSearchCalls(payload:any) {
   return (payload?.output || []).filter((x:any) =>
     String(x?.type || "").toLowerCase().includes("web_search_call")
@@ -164,6 +168,9 @@ Rules:
 - Do not use bullets, markdown, headings, bold markers, tables, inline URLs, or source names in the answer text.
 - Keep the line practical and normally under 35 words.
 - Source links will be shown separately by the app.
+- If the question asks about limits, standards, norms, CPCB/MoEFCC, SO₂/SOx, NOx, PM or emissions, prioritize official Indian sources such as CPCB and MoEFCC over secondary sites.
+- For such regulatory questions, include the applicability condition in the same line (for example commissioning period, unit size/capacity, fuel/category, or rule/amendment) whenever the source provides it.
+- Never present one generic emission limit as universally applicable when the regulation has multiple categories.
 `.trim();
 
   const res = await fetch("https://api.openai.com/v1/responses", {
@@ -177,7 +184,7 @@ Rules:
       instructions:webInstructions,
       tools:[{ type:"web_search", search_context_size:"medium" }],
       tool_choice:"auto",
-      input:`Department: ${scope}\nQuestion: ${question}`
+      input:`Department: ${scope}\nRegulatory/limit question: ${isRegulatoryQuery(question) ? "yes" : "no"}\nQuestion: ${question}`
     })
   });
 
@@ -372,6 +379,7 @@ Rules:
 - Keep equipment identity strict: pump != pump motor; fan != fan motor; actuator/bearing/gearbox data must not replace parent-equipment data unless asked.
 - Use units exactly as supported by the context.
 - Do not invent, infer, average, or correct values.
+- For limits/standards/norms/emissions questions, answer from plant documents ONLY if an explicit numeric limit and its applicability/condition are present in the supplied context. Otherwise return exactly: "No exact plant-document match found."
 - Return JSON only in this shape:
 {"answer_lines":["..."],"source_indices":[0,1]}
 source_indices must contain only the source numbers that directly support the answer.
