@@ -581,7 +581,7 @@
         <h2>Authorized User</h2>
         <p>You are signed in, but this account does not have Admin upload/delete permission.</p>
         <div class="admin-actions">
-          <button onclick="hardRefreshPP360()">Hard Refresh</button>
+          <button onclick="hardRefreshPP360()" title="Hard Refresh" aria-label="Hard Refresh">↻</button>
           <button onclick="logout()">Logout</button>
         </div>
       </div>`;
@@ -599,7 +599,7 @@
           <p class="muted">Signed in as ${esc(backendSession.user.email || 'Admin')}</p>
         </div>
         <div class="admin-actions">
-          <button onclick="hardRefreshPP360()">Hard Refresh</button>
+          <button onclick="hardRefreshPP360()" title="Hard Refresh" aria-label="Hard Refresh">↻</button>
           <button onclick="logout()">Logout</button>
         </div>
       </div>
@@ -1210,4 +1210,8 @@
   };
 
   restoreBackendSession();
+
+  const headerRefresh = document.getElementById('refreshBtn');
+  if (headerRefresh) headerRefresh.onclick = () => window.hardRefreshPP360();
+
 })();
