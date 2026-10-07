@@ -2281,14 +2281,17 @@
       ? payload.answer_lines.filter(Boolean)
       : String(payload?.answer || '').split(/\n+/).map(x=>x.trim()).filter(Boolean);
 
-    const lineHtml = lines.length
-      ? '<div class="multi-answer">' + lines.map(line => {
-          const m = line.match(/^([^:]{1,80})\s*:\s*(.+)$/);
-          return m
-            ? '<div class="multi-answer-row"><span>' + esc(m[1]) + '</span><b>' + esc(m[2]) + '</b></div>'
-            : '<div class="simple-answer-lines"><div>' + esc(line) + '</div></div>';
-        }).join('') + '</div>'
-      : '<div class="onelineanswer"><b>No verified answer found.</b></div>';
+    const isWeb = payload?.source_type === 'web';
+    const lineHtml = isWeb
+      ? '<div class="onelineanswer"><b>' + esc(lines.join(' ').replace(/\s+/g,' ').trim() || 'No reliable online reference found.') + '</b></div>'
+      : (lines.length
+          ? '<div class="multi-answer">' + lines.map(line => {
+              const m = line.match(/^([^:]{1,80})\s*:\s*(.+)$/);
+              return m
+                ? '<div class="multi-answer-row"><span>' + esc(m[1]) + '</span><b>' + esc(m[2]) + '</b></div>'
+                : '<div class="simple-answer-lines"><div>' + esc(line) + '</div></div>';
+            }).join('') + '</div>'
+          : '<div class="onelineanswer"><b>No verified answer found.</b></div>');
 
     const seen = new Set();
     const buttons = [];
@@ -2323,7 +2326,6 @@
       ? '<div class="online-sources"><b>Sources</b>' + webLinks.join('') + '</div>'
       : '';
 
-    const isWeb = payload?.source_type === 'web';
     const badge = isWeb ? 'Online Reference' : 'Plant AI';
     const sourceNote = isWeb
       ? '<div class="online-reference-note">General online information — not verified plant-specific data.</div>'
