@@ -313,14 +313,104 @@
   function exactEquipmentQuery(q) {
     const nq = norm(q);
     const defs = [
-      {label:'ID Fan', exact:['id fan','induced draft fan'], vendorQuery:'id fan make'},
-      {label:'PA Fan', exact:['pa fan','primary air fan'], vendorQuery:'pa fan make'},
-      {label:'SA Fan', exact:['sa fan','secondary air fan'], vendorQuery:'sa fan make'},
-      {label:'BFP', exact:['bfp','bfw pump','boiler feed pump','boiler feed water pump'], vendorQuery:'bfp make'},
-      {label:'Steam Turbine', exact:['steam turbine','turbine'], vendorQuery:'turbine make'},
-      {label:'ESP', exact:['esp','electrostatic precipitator'], vendorQuery:'esp make'}
+      {label:'ID Fan', category:'CFBC Boiler', exact:['id fan','induced draft fan'], vendorQuery:'id fan make'},
+      {label:'PA Fan', category:'CFBC Boiler', exact:['pa fan','primary air fan'], vendorQuery:'pa fan make'},
+      {label:'SA Fan', category:'CFBC Boiler', exact:['sa fan','secondary air fan'], vendorQuery:'sa fan make'},
+      {label:'BFP', category:'CFBC Boiler', exact:['bfp','bfw pump','boiler feed pump','boiler feed water pump'], vendorQuery:'bfp make'},
+      {label:'Steam Turbine', category:'Steam Turbine', exact:['steam turbine','turbine'], vendorQuery:'turbine make'},
+      {label:'Air Cooled Condenser', category:'Air Cooled Condenser', exact:['acc','air cooled condenser'], vendorQuery:'acc make'},
+      {label:'ESP', category:'ESP', exact:['esp','electrostatic precipitator'], vendorQuery:'esp make'}
     ];
     return defs.find(d => d.exact.includes(nq)) || null;
+  }
+
+  function equipmentSummaryFromDocuments(eq, documents) {
+    if (!eq) return null;
+
+    const terms = eq.exact.map(norm);
+    const candidates = (documents || [])
+      .filter(d => {
+        if (eq.category && norm(d.category || '') === norm(eq.category)) return true;
+        const hay = norm([
+          d.file_name,
+          d.document_type,
+          (d.metadata && d.metadata.section) || '',
+          (d.metadata && d.metadata.source_path) || ''
+        ].join(' '));
+        return terms.some(t => hay.includes(t));
+      })
+      .map(d => {
+        const hay = norm([
+          d.file_name,
+          d.document_type,
+          (d.metadata && d.metadata.section) || '',
+          (d.metadata && d.metadata.source_path) || ''
+        ].join(' '));
+        let score = 0;
+        if (eq.category && norm(d.category || '') === norm(eq.category)) score += 400;
+        if (/technical data|datasheet|data sheet|specification|nameplate|offer/.test(hay)) score += 260;
+        if (/manual|o&m/.test(hay)) score += 100;
+        if (/motor|bearing|actuator|junction box|cable/.test(hay)) score -= 180;
+        return {d,score};
+      })
+      .sort((a,b)=>b.score-a.score);
+
+    for (const item of candidates) {
+      const d = item.d;
+      const raw = String(d.extracted_text || '').replace(/\s+/g,' ').trim();
+      if (!raw) continue;
+
+      const rows = [];
+      const add = (label, value) => {
+        value = String(value || '').replace(/\s+/g,' ').replace(/[,:;.-]+$/,'').trim();
+        if (!value || value.length > 90) return;
+        if (rows.some(r => r.label === label && r.value === value)) return;
+        rows.push({label,value});
+      };
+
+      if (eq.label === 'Air Cooled Condenser') {
+        let m;
+        m = raw.match(/AIR\s+COOLED\s+CONDENSER\s*\(ACC\).*?DESCRIPTION\s+([A-Z][A-Z &().'-]{3,60}?(?:LIMITED|LTD\.?))(?=\s+\|?\s*General|\s+General|\s+Offer|$)/i);
+        if (m) add('Manufacturer', m[1]);
+
+        m = raw.match(/Type\s+of\s+condenser\s*[:=\-]?\s*(.{2,60}?)(?=\s+(?:steam\s+quantity|capacity|design|heat|vacuum|pressure|temperature))/i);
+        if (m) add('Type of condenser', m[1]);
+
+        m = raw.match(/steam\s+quantity\s*\(?\s*tph\s*\)?\s*[:=\-]?\s*([0-9.,]+)/i);
+        if (m) add('Steam quantity', m[1] + ' TPH');
+
+        m = raw.match(/(?:design\s+)?back\s*pressure\s*[:=\-]?\s*([0-9.,]+\s*(?:bar|mbar|kPa|mmHg|ata)?)/i);
+        if (m) add('Back pressure', m[1]);
+
+        m = raw.match(/(?:number\s+of\s+)?(?:fan|fans)\s*[:=\-]?\s*([0-9]{1,3})/i);
+        if (m) add('Fans', m[1]);
+      }
+
+      const general = [
+        ['Make', /\b(?:Make|Manufacturer|OEM)\s*[:=\-]?\s*([^;|]{2,60}?)(?=\s+(?:Model|Type|Rated|Speed|Pressure|Temperature|Capacity|Flow|Head|Power|Voltage|Current|Frequency|Efficiency|Serial|$))/i],
+        ['Model / Type', /\b(?:Model|Type)\s*[:=\-]?\s*([^;|]{2,60}?)(?=\s+(?:Make|Rated|Speed|Pressure|Temperature|Capacity|Flow|Head|Power|Voltage|Current|Frequency|Efficiency|Serial|$))/i],
+        ['Rated output', /\bRated\s+Output\s*[:=\-]?\s*([0-9.,]+\s*(?:kW|MW)?)/i],
+        ['Rated speed', /\bRated\s+Speed\s*[:=\-]?\s*([0-9.,]+\s*(?:RPM|rpm)?)/i],
+        ['Capacity / Flow', /\b(?:Rated\s+)?(?:Capacity|Flow)\s*[:=\-]?\s*([0-9.,]+\s*(?:m3\/h|m³\/h|TPH|t\/h|kg\/s)?)/i]
+      ];
+      for (const [label,re] of general) {
+        const m = raw.match(re);
+        if (m) add(label,m[1]);
+      }
+
+      if (rows.length >= 2) {
+        return {
+          rows: rows.slice(0,10),
+          id:d.id,
+          storage_path:d.storage_path,
+          file_name:d.file_name,
+          category:d.category,
+          document_type:d.document_type
+        };
+      }
+    }
+
+    return null;
   }
 
   function equipmentPrimaryReference(eq, documents) {
@@ -529,6 +619,26 @@
 
     const exactEquipment = exactEquipmentQuery(q);
     if (exactEquipment) {
+      const summary = equipmentSummaryFromDocuments(exactEquipment, data);
+      if (summary) {
+        return [{
+          score:100000,
+          direct_rows:summary.rows,
+          id:summary.id,
+          storage_path:summary.storage_path,
+          file_name:summary.file_name,
+          page:null,
+          text:'',
+          category:summary.category,
+          document_type:summary.document_type,
+          section:'Technical Data',
+          source_path:'',
+          detail_matched:1,
+          detail_total:1,
+          detail_ratio:1
+        }];
+      }
+
       const ref = equipmentPrimaryReference(exactEquipment, data);
       if (ref) {
         return [{
@@ -1215,6 +1325,16 @@
 
     let answer = '';
     let answerHit = null;
+
+    if (hits[0] && Array.isArray(hits[0].direct_rows) && hits[0].direct_rows.length) {
+      const rows = hits[0].direct_rows.map(r =>
+        '<div class="multi-answer-row"><span>' + esc(r.label) + '</span><b>' + esc(r.value) + '</b></div>'
+      ).join('');
+      const view = hits[0].id
+        ? '<div class="result-actions"><button onclick="viewDocument(\'' + hits[0].id + '\')">View related document</button></div>'
+        : '';
+      return '<div class="card result compactresult"><div class="multi-answer">' + rows + '</div>' + view + '</div>';
+    }
 
     const multi = structuredMultiValueAnswer(q,hits);
     if (multi) {
