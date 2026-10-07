@@ -2319,7 +2319,17 @@
         body:JSON.stringify({question:raw, scope:scopeValue})
       });
 
-      if (!res.ok) throw new Error('RAG endpoint unavailable: ' + res.status);
+      if (!res.ok) {
+        let detail = '';
+        try {
+          const errPayload = await res.json();
+          detail = String(errPayload?.error || errPayload?.message || '').trim();
+        } catch (_) {
+          try { detail = (await res.text()).trim(); } catch (_) {}
+        }
+        const msg = detail || ('Plant AI request failed with status ' + res.status);
+        throw new Error(msg);
+      }
       const payload = await res.json();
       if (!payload || (!payload.answer && !Array.isArray(payload.answer_lines))) {
         throw new Error('No AI answer returned.');
@@ -2330,8 +2340,14 @@
       renderTabs();
       document.getElementById('view').innerHTML = renderRagAnswer(payload);
     } catch (err) {
-      // Keep PowerPlant360 usable until the secure Edge Function is deployed.
-      await searchAll();
+      const rawMessage = String(err?.message || err || 'Unknown Plant AI error');
+      const safeMessage = rawMessage
+        .replace(/sk-[A-Za-z0-9_-]+/g, '[hidden API key]')
+        .slice(0, 500);
+      renderTabs();
+      document.getElementById('view').innerHTML =
+        '<div class="card result compactresult"><div class="ai-answer-badge">Plant AI error</div>' +
+        '<div class="notice"><b>Plant AI could not complete this search.</b><br>' + esc(safeMessage) + '</div></div>';
     } finally {
       if (btn) { btn.disabled = false; btn.textContent = oldText || 'Ask Plant AI'; }
     }
