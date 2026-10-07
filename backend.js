@@ -239,6 +239,63 @@
     return out.length>260 ? out.slice(0,260)+'…' : out;
   }
 
+  function definitionQueryTerm(q) {
+    const raw = String(q || '').trim();
+    const n = norm(raw);
+    const patterns = [
+      /^what\s+is\s+(.+)$/i,
+      /^define\s+(.+)$/i,
+      /^meaning\s+of\s+(.+)$/i,
+      /^full\s+form\s+of\s+(.+)$/i,
+      /^what\s+does\s+(.+?)\s+mean$/i
+    ];
+    for (const re of patterns) {
+      const m = raw.match(re);
+      if (m && m[1]) return m[1].trim().replace(/[?.!]+$/,'');
+    }
+    return '';
+  }
+
+  function explicitDefinitionFromDocuments(q, documents) {
+    const term = definitionQueryTerm(q);
+    if (!term) return null;
+
+    const esc = term.replace(/[.*+?^()|[\]\\]/g,'\\$&');
+
+    const patterns = [
+      new RegExp('\\b' + esc + '\\b\\s+(?:means|stands\\s+for|is\\s+defined\\s+as|refers\\s+to)\\s+([^.;]{3,180})','i'),
+      new RegExp('\\b' + esc + '\\b\\s*[-–—:ñ]\\s*([A-Za-z][A-Za-z0-9&(),/ .-]{3,120})(?=\\s{2,}|[.;]|$)','i'),
+      new RegExp('([A-Za-z][A-Za-z0-9&(),/ .-]{3,120})\\s*\\(\\s*' + esc + '\\s*\\)','i')
+    ];
+
+    for (const d of documents || []) {
+      const raw = String(d.extracted_text || '').replace(/\s+/g,' ').trim();
+      if (!raw) continue;
+
+      for (let i=0;i<patterns.length;i++) {
+        const m = raw.match(patterns[i]);
+        if (!m) continue;
+
+        let expansion = (m[1] || '').trim().replace(/[,:;.-]+$/,'').trim();
+        if (!expansion || expansion.length < 3 || expansion.length > 180) continue;
+
+        // Avoid table/interlock noise masquerading as a definition.
+        if (/\bNA\b|potential free|interlock|outlet|close|open/i.test(expansion) && i===1) continue;
+
+        const label = term.toUpperCase();
+        return {
+          answer: label + ' : ' + expansion,
+          id: d.id,
+          storage_path: d.storage_path,
+          file_name: d.file_name,
+          category: d.category,
+          document_type: d.document_type
+        };
+      }
+    }
+    return null;
+  }
+
   async function searchPrivateDocuments(q) {
     if (!backendSession || !client()) return [];
     const { data, error } = await client()
@@ -250,6 +307,28 @@
 
     const tokens = queryTokens(q);
     if (!tokens.length) return [];
+
+    const definitionTerm = definitionQueryTerm(q);
+    if (definitionTerm) {
+      const def = explicitDefinitionFromDocuments(q, data);
+      if (!def) return [];
+      return [{
+        score: 100000,
+        direct_answer: def.answer,
+        id: def.id,
+        storage_path: def.storage_path,
+        file_name: def.file_name,
+        page: null,
+        text: '',
+        category: def.category,
+        document_type: def.document_type,
+        section: '',
+        source_path: '',
+        detail_matched: 1,
+        detail_total: 1,
+        detail_ratio: 1
+      }];
+    }
 
     const explicitVendor = findExplicitEquipmentVendor(q, data);
     const routedCategory = queryEquipmentCategory(q);
