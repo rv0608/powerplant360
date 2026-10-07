@@ -1101,6 +1101,50 @@
     }
     return best.label + ' : ' + best.value;
   }
+  function genericTechnicalRows(q, hits) {
+    const nq = norm(q);
+    const wantsList = /(details|data|specification|specifications|parameters|technical|nameplate|rating|ratings|surface|dimensions)/.test(nq);
+    if (!wantsList) return null;
+
+    const defs = [
+      ['Make', /\b(?:Make|Manufacturer|OEM)\s*[:=\-]?\s*([^;|]{1,60}?)(?=\s+(?:Model|Type|Rated|Speed|Pressure|Temperature|Capacity|Flow|Head|Power|Voltage|Current|Frequency|Efficiency|Material|Bearing|Serial|$))/i],
+      ['Model / Type', /\b(?:Model|Type)\s*[:=\-]?\s*([^;|]{1,60}?)(?=\s+(?:Make|Rated|Speed|Pressure|Temperature|Capacity|Flow|Head|Power|Voltage|Current|Frequency|Efficiency|Material|Bearing|Serial|$))/i],
+      ['Rated output', /\bRated\s+Output\s*[:=\-]?\s*([0-9.,]+\s*(?:kW|MW)?)/i],
+      ['Rated speed', /\bRated\s+Speed\s*[:=\-]?\s*([0-9.,]+\s*(?:RPM|rpm)?)/i],
+      ['Pressure', /\b(?:Rated|Design|Inlet Steam)?\s*Pressure\s*[:=\-]?\s*([0-9.,]+\s*(?:ata|bar|kg\/?cm2|kg\/?cm²|MPa|kPa)?)/i],
+      ['Temperature', /\b(?:Rated|Design|Inlet Steam)?\s*Temperature\s*[:=\-]?\s*([0-9.,]+\s*°?\s*C?)/i],
+      ['Capacity / Flow', /\b(?:Rated\s+)?(?:Capacity|Flow)\s*[:=\-]?\s*([0-9.,]+\s*(?:m3\/h|m³\/h|TPH|t\/h|kg\/s)?)/i],
+      ['Head', /\b(?:Rated\s+)?Head\s*[:=\-]?\s*([0-9.,]+\s*(?:m|mWC)?)/i],
+      ['Power', /\b(?:Rated\s+)?Power\s*[:=\-]?\s*([0-9.,]+\s*(?:kW|MW)?)/i],
+      ['Voltage', /\b(?:Rated\s+)?Voltage\s*[:=\-]?\s*([0-9.,]+\s*(?:V|kV)?)/i],
+      ['Current', /\b(?:Rated\s+)?Current\s*[:=\-]?\s*([0-9.,]+\s*A?)/i],
+      ['Frequency', /\bFrequency\s*[:=\-]?\s*([0-9.,]+\s*Hz?)/i],
+      ['Efficiency', /\bEfficiency\s*[:=\-]?\s*([0-9.,]+\s*%?)/i],
+      ['Density', /\b(?:Bed\s+Material\s+Density|Bulk\s+Density|Density)\s*[:=\-]?\s*([0-9.,]+\s*(?:kg\/?m3|kg\/?m³|t\/?m3|g\/?cc)?)/i],
+      ['Material', /\bMaterial\s*[:=\-]?\s*([^;|]{1,50}?)(?=\s+(?:Make|Model|Type|Rated|Speed|Pressure|Temperature|Capacity|Flow|Head|Power|Voltage|Current|Frequency|Efficiency|Bearing|Serial|$))/i],
+      ['Bearing', /\bBearing(?:\s+(?:No|Type))?\s*[:=\-]?\s*([^;|]{1,60}?)(?=\s+(?:Make|Model|Type|Rated|Speed|Pressure|Temperature|Capacity|Flow|Head|Power|Voltage|Current|Frequency|Efficiency|Material|Serial|$))/i]
+    ];
+
+    for(const hit of hits || []){
+      const raw=String(hit.text||'').replace(/\s+/g,' ').trim();
+      if(!raw) continue;
+      const rows=[];
+      const seen=new Set();
+      for(const [label,re] of defs){
+        const m=raw.match(re);
+        if(!m || !m[1]) continue;
+        const value=cleanDisplayedAnswer(m[1]);
+        if(!value || value.length>80) continue;
+        const key=label+'|'+value;
+        if(seen.has(key)) continue;
+        seen.add(key);
+        rows.push({label,value});
+      }
+      if(rows.length>=2) return {rows:rows.slice(0,12),hit};
+    }
+    return null;
+  }
+
   function structuredMultiValueAnswer(q, hits) {
     const nq = norm(q);
     if (!/(heating surface|surface area|heating area)/.test(nq)) return null;
@@ -1131,6 +1175,15 @@
       }
     }
     return null;
+  }
+
+  function answerHtml(answer) {
+    const cleaned = cleanDisplayedAnswer(answer);
+    const parts = cleaned.split(/\s*[|•]\s*/).map(x=>x.trim()).filter(Boolean);
+    if (parts.length > 1) {
+      return '<div class="simple-answer-lines">' + parts.map(x=>'<div>'+esc(x)+'</div>').join('') + '</div>';
+    }
+    return '<div class="onelineanswer"><b>' + esc(cleaned) + '</b></div>';
   }
 
   function cleanDisplayedAnswer(value) {
@@ -1170,6 +1223,17 @@
       ).join('');
       const view = multi.hit && multi.hit.id
         ? '<div class="result-actions"><button onclick="viewDocument(\'' + multi.hit.id + '\')">View related document</button></div>'
+        : '';
+      return '<div class="card result compactresult"><div class="multi-answer">' + rows + '</div>' + view + '</div>';
+    }
+
+    const genericRows = genericTechnicalRows(q,hits);
+    if (genericRows) {
+      const rows = genericRows.rows.map(r =>
+        '<div class="multi-answer-row"><span>' + esc(r.label) + '</span><b>' + esc(r.value) + '</b></div>'
+      ).join('');
+      const view = genericRows.hit && genericRows.hit.id
+        ? '<div class="result-actions"><button onclick="viewDocument(\'' + genericRows.hit.id + '\')">View related document</button></div>'
         : '';
       return '<div class="card result compactresult"><div class="multi-answer">' + rows + '</div>' + view + '</div>';
     }
@@ -1236,7 +1300,7 @@
       ? '<div class="result-actions"><button onclick="viewDocument(\'' + answerHit.id + '\')">View related document</button></div>'
       : '';
 
-    return '<div class="card result compactresult"><div class="onelineanswer"><b>' + esc(answer) + '</b></div>' + view + '</div>';
+    return '<div class="card result compactresult">' + answerHtml(answer) + view + '</div>';
   }
   function matchesEquipmentSection(d, sectionName) {
     const name = norm(d.file_name || '');
