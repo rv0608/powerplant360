@@ -2210,6 +2210,15 @@
     originalSearchAll();
   };
 
+  function safeExternalUrl(value) {
+    try {
+      const u = new URL(String(value || ''));
+      return (u.protocol === 'https:' || u.protocol === 'http:') ? u.href : '';
+    } catch (_) {
+      return '';
+    }
+  }
+
   function renderRagAnswer(payload) {
     const lines = Array.isArray(payload?.answer_lines)
       ? payload.answer_lines.filter(Boolean)
@@ -2234,11 +2243,32 @@
       if (buttons.length >= 3) break;
     }
 
-    const actions = buttons.length
+    const plantActions = buttons.length
       ? '<div class="result-actions">' + buttons.join('') + '</div>'
       : '';
 
-    return '<div class="card result compactresult"><div class="ai-answer-badge">Plant AI</div>' + lineHtml + actions + '</div>';
+    const webLinks = [];
+    const webSeen = new Set();
+    for (const src of (payload?.web_sources || [])) {
+      const url = safeExternalUrl(src?.url);
+      if (!url || webSeen.has(url)) continue;
+      webSeen.add(url);
+      const title = String(src?.title || 'Online source').trim() || 'Online source';
+      webLinks.push('<a class="online-source-link" href="' + esc(url) + '" target="_blank" rel="noopener noreferrer">' + esc(title) + '</a>');
+      if (webLinks.length >= 5) break;
+    }
+
+    const onlineActions = webLinks.length
+      ? '<div class="online-sources"><b>Sources</b>' + webLinks.join('') + '</div>'
+      : '';
+
+    const isWeb = payload?.source_type === 'web';
+    const badge = isWeb ? 'Online Reference' : 'Plant AI';
+    const sourceNote = isWeb
+      ? '<div class="online-reference-note">General online information — not verified plant-specific data.</div>'
+      : '';
+
+    return '<div class="card result compactresult"><div class="ai-answer-badge">' + badge + '</div>' + sourceNote + lineHtml + (isWeb ? onlineActions : plantActions) + '</div>';
   }
 
   window.pp360Search = async function () {
