@@ -103,7 +103,7 @@
     if (!backendSession || !client()) return [];
     const { data, error } = await client()
       .from('documents')
-      .select('id,file_name,category,document_type,processing_status,extracted_text,page_count')
+      .select('id,file_name,storage_path,category,document_type,processing_status,extracted_text,page_count,metadata')
       .eq('processing_status', 'ready')
       .not('extracted_text', 'is', null);
     if (error || !data) return [];
@@ -163,7 +163,8 @@
             text,
             category: d.category,
             document_type: d.document_type,
-            section: (d.metadata && d.metadata.section) || ''
+            section: (d.metadata && d.metadata.section) || '',
+            source_path: (d.metadata && d.metadata.source_path) || ''
           });
         }
       }
@@ -222,6 +223,64 @@
     const snippet = makeSnippet(text, tokens).replace(/\s+/g,' ').trim();
     if (!snippet) return 'No exact value found in the uploaded documents.';
     return snippet.length > 160 ? snippet.slice(0,160) + '…' : snippet;
+  }
+
+  function equipmentVendorFromPath(q, hits) {
+    const nq = norm(q);
+    if (!/(make|manufacturer|oem)/.test(nq)) return '';
+
+    const aliases = [
+      {label:'PA FAN', terms:['pa fan','primary air fan']},
+      {label:'SA FAN', terms:['sa fan','secondary air fan']},
+      {label:'ID FAN', terms:['id fan','induced draft fan']},
+      {label:'BFP', terms:['bfp','bfw pump','boiler feed pump','boiler feed water pump']}
+    ];
+    const eq = aliases.find(x => x.terms.some(t => nq.includes(t)));
+    if (!eq) return '';
+
+    const knownVendors = [
+      'Andrew Yule','KSB Pump Ltd','KSB','ABB','Siemens','Thermax',
+      'Yokogawa','Forbes Marshall','Rotex','Schroedahl','Tyco Sanmar',
+      'Valvetech','Amrit Enterprises','Kwality Conveyor','MIL Control'
+    ];
+
+    let best = null;
+    for (const hit of hits) {
+      const path = String(hit.source_path || '');
+      const name = String(hit.file_name || '');
+      const hay = (path + ' ' + name).toLowerCase();
+
+      const eqPos = eq.terms.map(t => hay.indexOf(t)).filter(x => x >= 0).sort((a,b)=>a-b)[0];
+      if (eqPos == null) continue;
+
+      let score = Number(hit.score || 0) + 250;
+      for (const vendor of knownVendors) {
+        const vp = hay.indexOf(vendor.toLowerCase());
+        if (vp < 0) continue;
+        const dist = Math.abs(vp - eqPos);
+        const candidateScore = score + Math.max(0, 180 - dist);
+        if (!best || candidateScore > best.score) best = {score:candidateScore, vendor};
+      }
+
+      // Generic "equipment - vendor" folder/file pattern.
+      const raw = path || name;
+      for (const term of eq.terms) {
+        const re = new RegExp(term.replace(/[.*+?^()|[\]\\]/g,'\\$&') + '\\s*[-–—_]\\s*([^/\\\\]{2,60})','i');
+        const m = raw.match(re);
+        if (m) {
+          let vendor = (m[1] || '').trim()
+            .replace(/\.(pdf|docx?|xlsx?|xls|html?)$/i,'')
+            .replace(/\b(o\s*&\s*m|manual|drawing|datasheet|data sheet)\b.*$/i,'')
+            .trim();
+          if (vendor && vendor.length <= 50) {
+            const candidateScore = score + 160;
+            if (!best || candidateScore > best.score) best = {score:candidateScore, vendor};
+          }
+        }
+      }
+    }
+
+    return best ? eq.label + ' Make : ' + best.vendor : '';
   }
 
   function equipmentAnchoredFieldAnswer(q, hits) {
@@ -408,7 +467,8 @@
     return best.label + ' : ' + best.value;
   }
   function renderPrivateHits(q, hits) {
-    let answer = equipmentAnchoredFieldAnswer(q, hits);
+    let answer = equipmentVendorFromPath(q, hits);
+    if (!answer) answer = equipmentAnchoredFieldAnswer(q, hits);
     if (!answer) answer = contextualFieldAnswer(q, hits);
     if (!answer) {
       for (const hit of hits) {
