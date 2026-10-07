@@ -112,7 +112,14 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: "Question required" }), { status: 400, headers: { ...corsHeaders, "Content-Type":"application/json" }});
     }
 
-    const scope = requestedScope || inferScope(question);
+    if (!requestedScope) {
+      return new Response(JSON.stringify({ error: "Department scope required" }), {
+        status:400,
+        headers:{ ...corsHeaders, "Content-Type":"application/json" }
+      });
+    }
+
+    const scope = requestedScope;
     const ts = tokens(question);
 
     let query = supabase
@@ -121,7 +128,7 @@ Deno.serve(async (req) => {
       .eq("processing_status", "ready")
       .not("extracted_text", "is", null);
 
-    if (scope) query = query.eq("category", scope);
+    query = query.eq("category", scope);
 
     // Limit candidate documents using lexical terms before page scoring.
     if (ts.length) {
@@ -136,7 +143,7 @@ Deno.serve(async (req) => {
     let { data: docs, error } = await query.limit(40);
 
     // If scoped lexical retrieval is too strict, retry within the scope without token filter.
-    if (!error && (!docs || !docs.length) && scope) {
+    if (!error && (!docs || !docs.length)) {
       const retry = await supabase
         .from("documents")
         .select("id,file_name,category,document_type,extracted_text,page_count,metadata")
@@ -253,7 +260,7 @@ source_indices must contain only the source numbers that directly support the an
     return new Response(JSON.stringify({
       answer_lines:Array.isArray(parsed?.answer_lines) ? parsed.answer_lines : [],
       sources,
-      scope:scope || "All Plant"
+      scope
     }), {
       headers:{ ...corsHeaders, "Content-Type":"application/json" }
     });
