@@ -285,6 +285,22 @@
     return '<div class="card result compactresult"><div class="onelineanswer"><b>' + esc(answer) + '</b></div></div>';
   }
 
+  window.hardRefreshPP360 = async function () {
+    try {
+      if ('serviceWorker' in navigator) {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(regs.map(r => r.unregister()));
+      }
+      if ('caches' in window) {
+        const keys = await caches.keys();
+        await Promise.all(keys.map(k => caches.delete(k)));
+      }
+    } catch (e) {}
+    const u = new URL(window.location.href);
+    u.searchParams.set('refresh', Date.now().toString());
+    window.location.replace(u.toString());
+  };
+
   adminPage = async function () {
     const v = document.getElementById('view');
 
@@ -315,7 +331,10 @@
       v.innerHTML = `<div class="card">
         <h2>Authorized User</h2>
         <p>You are signed in, but this account does not have Admin upload/delete permission.</p>
-        <button onclick="logout()">Logout</button>
+        <div class="admin-actions">
+          <button onclick="hardRefreshPP360()">Hard Refresh</button>
+          <button onclick="logout()">Logout</button>
+        </div>
       </div>`;
       return;
     }
