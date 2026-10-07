@@ -1606,7 +1606,6 @@
         <h2>Authorized User</h2>
         <p>You are signed in, but this account does not have Admin upload/delete permission.</p>
         <div class="admin-actions">
-          <button onclick="toggleApiUsage()">AI Usage</button>
           <button onclick="hardRefreshPP360()" title="Hard Refresh" aria-label="Hard Refresh">↻</button>
           <button onclick="logout()">Logout</button>
         </div>
@@ -1625,6 +1624,7 @@
           <p class="muted">Signed in as ${esc(backendSession.user.email || 'Admin')}</p>
         </div>
         <div class="admin-actions">
+          <button class="primary" onclick="toggleApiUsage()">AI Usage & Cost</button>
           <button onclick="hardRefreshPP360()" title="Hard Refresh" aria-label="Hard Refresh">↻</button>
           <button onclick="logout()">Logout</button>
         </div>
