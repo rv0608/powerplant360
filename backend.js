@@ -348,6 +348,8 @@
 
       <div class="notice"><b>Real backend enabled:</b> files are stored privately in Supabase Storage and metadata is stored in the database. The progress bar shows actual network upload progress.</div>
 
+      <div id="storageUsage" class="storage-usage"></div>
+
       <div class="doc-toolbar">
         <div>
           <label>Category filter</label>
@@ -591,7 +593,52 @@
     renderDocTable();
   }
 
+  function renderStorageUsage() {
+    const el = document.getElementById('storageUsage');
+    if (!el) return;
+
+    const storageLimit = 1024 * 1024 * 1024; // Supabase Free: 1 GB Storage
+    const databaseLimit = 500 * 1024 * 1024; // Supabase Free: 500 MB database quota
+    const storageUsed = docs.reduce((sum, d) => sum + Number(d.file_size || 0), 0);
+
+    const encoder = new TextEncoder();
+    const indexBytes = docs.reduce((sum, d) => {
+      const txt = d.extracted_text || '';
+      return sum + (txt ? encoder.encode(txt).length : 0);
+    }, 0);
+
+    const storagePct = Math.min(100, (storageUsed / storageLimit) * 100);
+    const indexPct = Math.min(100, (indexBytes / databaseLimit) * 100);
+    const remaining = Math.max(0, storageLimit - storageUsed);
+
+    const level = p => p >= 90 ? 'danger' : p >= 75 ? 'warn' : 'good';
+    const note = storagePct >= 90
+      ? 'Storage is nearly full. Upgrade or remove old documents before large uploads.'
+      : storagePct >= 75
+        ? 'Storage is above 75%. Plan additional capacity soon.'
+        : 'Storage capacity is healthy.';
+
+    el.innerHTML = `
+      <div class="usage-title"><h3>Storage & Index Capacity</h3><span class="usage-plan">Supabase Free-plan reference</span></div>
+      <div class="usage-grid">
+        <div class="usage-card"><span>Documents</span><strong>${docs.length}</strong><small>uploaded files</small></div>
+        <div class="usage-card">
+          <span>File Storage</span><strong>${formatBytes(storageUsed)} / 1 GB</strong>
+          <div class="usage-track"><div class="usage-fill ${level(storagePct)}" style="width:${storagePct.toFixed(1)}%"></div></div>
+          <small>${storagePct.toFixed(1)}% used</small>
+        </div>
+        <div class="usage-card">
+          <span>Search Index</span><strong>${formatBytes(indexBytes)} / 500 MB</strong>
+          <div class="usage-track"><div class="usage-fill ${level(indexPct)}" style="width:${indexPct.toFixed(1)}%"></div></div>
+          <small>Estimated extracted-text size, not total DB size</small>
+        </div>
+        <div class="usage-card"><span>Storage Remaining</span><strong>${formatBytes(remaining)}</strong><small>${esc(note)}</small></div>
+      </div>
+    `;
+  }
+
   renderDocTable = function () {
+    renderStorageUsage();
     const wrap = document.getElementById('docTableWrap');
     if (!wrap) return;
 
