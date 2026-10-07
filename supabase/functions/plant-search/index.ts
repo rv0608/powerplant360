@@ -275,6 +275,17 @@ Deno.serve(async (req) => {
     } catch (_) {}
     const supabaseAdmin = adminKey ? createClient(supabaseUrl, adminKey) : null;
 
+    let callerRole = "";
+    if (supabaseAdmin) {
+      const { data: roleRow } = await supabaseAdmin
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", userData.user.id)
+        .maybeSingle();
+      callerRole = String(roleRow?.role || "");
+    }
+    const allowOnlineWeb = callerRole === "admin";
+
     const recordUsage = async (usage:any, sourceType:string, scopeValue:string) => {
       if (!supabaseAdmin || !usage) return;
       const row = {
@@ -344,6 +355,28 @@ Deno.serve(async (req) => {
 
     if (error) throw error;
     if (!docs?.length) {
+      if (!allowOnlineWeb) {
+return new Response(JSON.stringify({
+          answer_lines:["No exact plant-document match found."],
+          sources:[],
+          web_sources:[],
+          source_type:"plant",
+          scope
+        }), {
+          headers:{ ...corsHeaders, "Content-Type":"application/json" }
+        });
+      }
+      if (!allowOnlineWeb) {
+return new Response(JSON.stringify({
+          answer_lines:["No exact plant-document match found."],
+          sources:[],
+          web_sources:[],
+          source_type:"plant",
+          scope
+        }), {
+          headers:{ ...corsHeaders, "Content-Type":"application/json" }
+        });
+      }
       const online = await webFallback(openaiKey, model, question, scope);
       await recordUsage(online.__usage, "web", scope);
       delete online.__usage;
@@ -455,6 +488,19 @@ source_indices must contain only the source numbers that directly support the an
 
     const answerLines = Array.isArray(parsed?.answer_lines) ? parsed.answer_lines : [];
     if (isNoExact(answerLines)) {
+      if (!allowOnlineWeb) {
+        await recordUsage(plantUsage, "plant", scope);
+        return new Response(JSON.stringify({
+          answer_lines:["No exact plant-document match found."],
+          sources:[],
+          web_sources:[],
+          source_type:"plant",
+          scope
+        }), {
+          headers:{ ...corsHeaders, "Content-Type":"application/json" }
+        });
+      }
+
       const online = await webFallback(openaiKey, model, question, scope);
       await recordUsage(online.__usage, "web", scope);
       delete online.__usage;
