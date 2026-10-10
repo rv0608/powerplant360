@@ -23,26 +23,28 @@
 
   function applySearchRoleUi() {
     const btn = document.getElementById('plantSearchBtn');
+    const onlineBtn = document.getElementById('onlineSearchBtn');
     const scopeEl = document.getElementById('scope');
 
     if (btn) {
-      if (backendRole === 'admin') {
-        btn.textContent = 'Ask Plant AI';
-        btn.title = 'Plant documents first; online AI/web fallback if needed';
-      } else if (backendRole === 'engineer' || backendRole === 'viewer') {
-        btn.textContent = 'Search Plant Data';
-        btn.title = 'Search authorized plant documents only';
-      } else {
-        btn.textContent = 'Search';
-        btn.title = 'Search';
-      }
+      btn.textContent = backendRole === 'admin' || backendRole === 'engineer' || backendRole === 'viewer'
+        ? 'Search Plant Data'
+        : 'Search';
+      btn.title = 'Search authorized plant documents only';
+    }
+
+    if (onlineBtn) {
+      onlineBtn.style.display = backendRole === 'admin' ? '' : 'none';
+      onlineBtn.disabled = false;
+      onlineBtn.textContent = 'Online Search';
+      onlineBtn.title = 'Search current online references';
     }
 
     if (scopeEl) {
       if (backendRole === 'admin') {
-        scopeEl.textContent = 'Authorized Admin mode: private plant documents + online AI search enabled.';
+        scopeEl.textContent = 'Authorized Admin mode: private plant documents enabled. Online Search is available separately.';
       } else if (backendRole === 'engineer' || backendRole === 'viewer') {
-        scopeEl.textContent = 'Authorized Plant Data mode: private plant documents enabled. Online AI search is Admin only.';
+        scopeEl.textContent = 'Authorized Plant Data mode: private plant documents enabled.';
       } else {
         scopeEl.textContent = 'Public mode: plant files require authorization.';
       }
@@ -2495,7 +2497,7 @@
       ? '<div class="online-sources"><b>Sources</b>' + webLinks.join('') + '</div>'
       : '';
 
-    const badge = isWeb ? 'Online Reference' : 'Plant AI';
+    const badge = isWeb ? 'Online Reference' : 'Plant Data';
     const sourceNote = isWeb
       ? '<div class="online-reference-note">General online information — not verified plant-specific data.</div>'
       : '';
@@ -2528,16 +2530,11 @@
       if (btn) { btn.disabled = true; btn.textContent = 'Thinking…'; }
 
       renderTabs();
-      const canUseOnline = backendRole === 'admin';
       document.getElementById('view').innerHTML =
         '<div class="card result compactresult">' +
-          '<div class="ai-answer-badge">' + (canUseOnline ? 'Plant AI' : 'Plant Data') + '</div>' +
+          '<div class="ai-answer-badge">Plant Data</div>' +
           '<div class="onelineanswer"><b>Searching ' + esc(scopeValue) + ' documents…</b></div>' +
-          '<div class="muted small" style="margin-top:8px">' +
-            (canUseOnline
-              ? 'If no verified plant-document answer is found, online references will be searched automatically.'
-              : 'Plant documents only. Online AI/web search is available to Admin only.') +
-          '</div>' +
+          '<div class="muted small" style="margin-top:8px">Plant documents only. Use Online Search separately if needed.</div>' +
         '</div>';
 
       const { data: sessionData } = await client().auth.getSession();
@@ -2552,7 +2549,7 @@
           'Authorization':'Bearer ' + token,
           'apikey':cfg.supabaseKey
         },
-        body:JSON.stringify({question:raw, scope:scopeValue})
+        body:JSON.stringify({question:raw, scope:scopeValue, mode:'plant'})
       });
 
       if (!res.ok) {
@@ -2587,8 +2584,79 @@
     } finally {
       if (btn) {
         btn.disabled = false;
-        btn.textContent = oldText || (backendRole === 'admin' ? 'Ask Plant AI' : 'Search Plant Data');
+        btn.textContent = oldText || 'Search Plant Data';
       }
+    }
+  };
+
+  window.pp360OnlineSearch = async function () {
+    if (backendRole !== 'admin') return;
+
+    const raw = document.getElementById('q')?.value.trim() || '';
+    const scopeValue = document.getElementById('searchScope')?.value || '';
+    const btn = document.getElementById('onlineSearchBtn');
+
+    if (!raw) return;
+    if (!scopeValue) {
+      renderTabs();
+      document.getElementById('view').innerHTML =
+        '<div class="card result compactresult"><div class="onelineanswer"><b>Please select a department first.</b></div></div>';
+      document.getElementById('searchScope')?.focus();
+      return;
+    }
+
+    const oldText = btn ? btn.textContent : 'Online Search';
+
+    try {
+      if (btn) { btn.disabled = true; btn.textContent = 'Searching…'; }
+
+      renderTabs();
+      document.getElementById('view').innerHTML =
+        '<div class="card result compactresult">' +
+          '<div class="ai-answer-badge">Online Search</div>' +
+          '<div class="onelineanswer"><b>Searching current online references…</b></div>' +
+          '<div class="muted small" style="margin-top:8px">General online information — not verified plant-specific data.</div>' +
+        '</div>';
+
+      const { data: sessionData } = await client().auth.getSession();
+      const token = sessionData?.session?.access_token;
+      if (!token) throw new Error('Session expired. Please log in again.');
+
+      const endpoint = cfg.supabaseUrl.replace(/\/$/,'') + '/functions/v1/plant-search';
+      const res = await fetch(endpoint, {
+        method:'POST',
+        headers:{
+          'Content-Type':'application/json',
+          'Authorization':'Bearer ' + token,
+          'apikey':cfg.supabaseKey
+        },
+        body:JSON.stringify({question:raw, scope:scopeValue, mode:'web'})
+      });
+
+      if (!res.ok) {
+        let detail = '';
+        try {
+          const errPayload = await res.json();
+          detail = String(errPayload?.error || errPayload?.message || '').trim();
+        } catch (_) {}
+        throw new Error(detail || ('Online search failed with status ' + res.status));
+      }
+
+      const payload = await res.json();
+      history = [raw, ...history.filter(x => norm(x) !== norm(raw))].slice(0,30);
+      localStorage.setItem('pp360history',JSON.stringify(history));
+      renderTabs();
+      document.getElementById('view').innerHTML = renderRagAnswer(payload);
+    } catch (err) {
+      const safeMessage = String(err?.message || err || 'Unknown online search error')
+        .replace(/sk-[A-Za-z0-9_-]+/g, '[hidden API key]')
+        .slice(0,500);
+      renderTabs();
+      document.getElementById('view').innerHTML =
+        '<div class="card result compactresult"><div class="ai-answer-badge">Online Search error</div>' +
+        '<div class="notice"><b>Online Search could not complete.</b><br>' + esc(safeMessage) + '</div></div>';
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = oldText || 'Online Search'; }
     }
   };
 
