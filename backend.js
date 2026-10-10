@@ -2361,9 +2361,15 @@
       if (!id || seen.has(id)) continue;
       seen.add(id);
       const page = Number(src?.page);
+      const pageEnd = Number(src?.page_end);
       const safePage = Number.isFinite(page) && page > 0 ? Math.floor(page) : null;
+      const safeEnd = Number.isFinite(pageEnd) && pageEnd >= page ? Math.floor(pageEnd) : safePage;
       const pageArg = safePage ? ',' + safePage : '';
-      const pageLabel = safePage ? ' · Page ' + safePage : '';
+      const pageLabel = safePage
+        ? (safeEnd && safeEnd > safePage
+            ? ' · Pages ' + safePage + '–' + safeEnd
+            : ' · Page ' + safePage)
+        : '';
       buttons.push('<button onclick="viewDocument(\'' + id + '\'' + pageArg + ')">View supporting document' + pageLabel + '</button>');
       if (buttons.length >= 3) break;
     }
