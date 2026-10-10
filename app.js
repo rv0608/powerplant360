@@ -1,5 +1,5 @@
 
-const equipment=['CFBC Boiler','Steam Turbine','Air Cooled Condenser','CHP','AHS','WTP / ETP','Cooling Tower','Electrical','C&I'];
+const equipment=['CFBC Boiler','Steam Turbine','Air Cooled Condenser','CHP','AHS','WTP / ETP','Cooling Tower','Electrical','C&I','Fire Fighting & Safety'];
 
 const sampleDocs=[];
 
@@ -639,6 +639,7 @@ function guessCategory(name){
  if(n.includes('cooling')) return 'Cooling Tower';
  if(n.includes('electrical')||n.includes('motor')||n.includes('transformer')||n.includes('mcc')) return 'Electrical';
  if(n.includes('dcs')||n.includes('plc')||n.includes('instrument')||n.includes('c&i')) return 'C&I';
+ if(n.includes('fire')||n.includes('hydrant')||n.includes('sprinkler')||n.includes('safety')||n.includes('extinguisher')||n.includes('emergency')) return 'Fire Fighting & Safety';
  if(n.includes('daily')||n.includes('operation')||n.includes('dcs report')) return 'Operations';
  return 'General';
 }
