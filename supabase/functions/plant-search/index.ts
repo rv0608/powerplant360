@@ -76,6 +76,7 @@ function inferScope(q: string) {
     ["Cooling Tower", ["cooling tower"]],
     ["Electrical", ["transformer","generator","switchgear","electrical"]],
     ["C&I", ["c&i","instrument","transmitter","dcs","plc"]],
+    ["Fire Fighting & Safety", ["fire fighting","firefighting","fire hydrant","hydrant","sprinkler","fire extinguisher","safety","emergency response"]],
   ];
   return routes.find(([, terms]) => terms.some((t: string) => n.includes(t)))?.[0] || "";
 }
