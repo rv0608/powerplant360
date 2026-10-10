@@ -1732,6 +1732,81 @@
     });
   };
 
+  function isIndexableImageFile(fileOrDoc) {
+    const mime = String(fileOrDoc?.type || fileOrDoc?.mime_type || '').toLowerCase();
+    const name = String(fileOrDoc?.name || fileOrDoc?.file_name || '').toLowerCase();
+    return /^image\/(png|jpeg|webp|gif)$/.test(mime) || /\.(png|jpe?g|webp|gif)$/.test(name);
+  }
+
+  function officeExt(fileOrDoc) {
+    const name = String(fileOrDoc?.name || fileOrDoc?.file_name || '').toLowerCase();
+    return (name.split('.').pop() || '').toLowerCase();
+  }
+
+  function isIndexableOfficeFile(fileOrDoc) {
+    return ['docx','xlsx','xls','csv','txt'].includes(officeExt(fileOrDoc));
+  }
+
+  async function invokeSecureIndexer(functionName, documentId) {
+    if (backendRole !== 'admin') throw new Error('Admin permission required for indexing.');
+    const { data: sessionData } = await client().auth.getSession();
+    const token = sessionData?.session?.access_token;
+    if (!token) throw new Error('Session expired. Please log in again.');
+
+    const endpoint = cfg.supabaseUrl.replace(/\/$/,'') + '/functions/v1/' + functionName;
+    const res = await fetch(endpoint, {
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json',
+        'Authorization':'Bearer ' + token,
+        'apikey':cfg.supabaseKey
+      },
+      body:JSON.stringify({document_id:documentId})
+    });
+
+    if (!res.ok) {
+      let detail = '';
+      try {
+        const payload = await res.json();
+        detail = String(payload?.error || payload?.message || '').trim();
+      } catch (_) {}
+      throw new Error(detail || ('Indexing failed with status ' + res.status));
+    }
+    return await res.json();
+  }
+
+  async function runExistingIndexer(id, functionName, label) {
+    if (backendRole !== 'admin') return;
+    try {
+      await client().from('documents').update({
+        processing_status:'processing',
+        updated_at:new Date().toISOString()
+      }).eq('id',id);
+      await loadDocsFromBackend();
+      await invokeSecureIndexer(functionName, id);
+      await loadDocsFromBackend();
+      if (document.getElementById('apiUsage')) await loadApiUsage();
+      alert(label + ' indexing completed. This file is now searchable as Plant Data.');
+    } catch (err) {
+      await loadDocsFromBackend();
+      alert(label + ' indexing failed: ' + (err.message || String(err)));
+    }
+  }
+
+  window.indexExistingImage = async function(id) {
+    const d = docs.find(x => x.id === id);
+    if (!d || !isIndexableImageFile(d)) return;
+    if (!confirm('Index searchable engineering data from this image?')) return;
+    await runExistingIndexer(id, 'index-image', 'Image');
+  };
+
+  window.indexExistingOffice = async function(id) {
+    const d = docs.find(x => x.id === id);
+    if (!d || !isIndexableOfficeFile(d)) return;
+    if (!confirm('Index searchable Plant Data from this Word/Excel/text file?')) return;
+    await runExistingIndexer(id, 'index-office', 'Office file');
+  };
+
   async function uploadRealFile(file, id, options = {}) {
     const bar = document.getElementById(id + '_bar');
     const pct = document.getElementById(id + '_pct');
@@ -1775,6 +1850,10 @@
         xhr.send(file);
       });
 
+      const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+      const isImage = isIndexableImageFile(file);
+      const isOffice = isIndexableOfficeFile(file);
+
       const { data: insertedRows, error: dbError } = await client().from('documents').insert({
         file_name: file.name,
         storage_path: storagePath,
@@ -1782,7 +1861,7 @@
         document_type: guessDocType(file.name),
         file_size: file.size,
         mime_type: file.type || null,
-        processing_status: file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf') ? 'processing' : 'uploaded',
+        processing_status: (isPdf || isImage || isOffice) ? 'processing' : 'uploaded',
         uploaded_by: s.user.id,
         metadata: {
           original_name: file.name,
@@ -1799,7 +1878,7 @@
       bar.style.width = '100%';
       pct.textContent = '100%';
 
-      if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
+      if (isPdf) {
         status.textContent = 'Upload complete. Extracting PDF text page by page…';
         try {
           const extracted = await extractPdfText(file);
@@ -1823,6 +1902,22 @@
             }
           }).eq('id', insertedRows.id);
           status.innerHTML = '<span class="errtext">Upload saved, but PDF text extraction failed: ' + esc(extractErr.message || String(extractErr)) + '</span>';
+        }
+      } else if (isImage) {
+        status.textContent = 'Upload complete. Indexing image table/text for Plant Data search…';
+        try {
+          await invokeSecureIndexer('index-image', insertedRows.id);
+          status.innerHTML = '<span class="oktext">✓ Secure upload + image indexing completed</span>';
+        } catch (indexErr) {
+          status.innerHTML = '<span class="errtext">Upload saved, but image indexing failed: ' + esc(indexErr.message || String(indexErr)) + '</span>';
+        }
+      } else if (isOffice) {
+        status.textContent = 'Upload complete. Indexing Word/Excel/text data for Plant Data search…';
+        try {
+          await invokeSecureIndexer('index-office', insertedRows.id);
+          status.innerHTML = '<span class="oktext">✓ Secure upload + Office indexing completed</span>';
+        } catch (indexErr) {
+          status.innerHTML = '<span class="errtext">Upload saved, but Office indexing failed: ' + esc(indexErr.message || String(indexErr)) + '</span>';
         }
       } else {
         status.innerHTML = '<span class="oktext">✓ Secure upload completed</span>';
@@ -2052,9 +2147,10 @@
       a.web += Number(r.web_search_calls || 0);
       a.cost += Number(r.estimated_cost_usd || 0);
       if (r.source_type === 'web') a.webAnswers += 1;
+      else if (r.source_type === 'index') a.indexJobs += 1;
       else a.plantAnswers += 1;
       return a;
-    }, {input:0,cached:0,output:0,web:0,cost:0,webAnswers:0,plantAnswers:0});
+    }, {input:0,cached:0,output:0,web:0,cost:0,webAnswers:0,plantAnswers:0,indexJobs:0});
 
     const startingCredit = 5.00;
     const remaining = Math.max(0, startingCredit - totals.cost);
@@ -2065,7 +2161,7 @@
     el.innerHTML = `
       <div class="usage-title"><h3>Plant AI Usage & Estimated Cost</h3><span class="usage-plan">OpenAI API • tracking from this feature onward</span></div>
       <div class="usage-grid">
-        <div class="usage-card"><span>AI Requests</span><strong>${num(rows.length)}</strong><small>${num(totals.plantAnswers)} plant • ${num(totals.webAnswers)} online</small></div>
+        <div class="usage-card"><span>AI Requests</span><strong>${num(rows.length)}</strong><small>${num(totals.plantAnswers)} plant • ${num(totals.webAnswers)} online • ${num(totals.indexJobs)} indexing</small></div>
         <div class="usage-card"><span>Input Tokens</span><strong>${num(totals.input)}</strong><small>${num(totals.cached)} cached</small></div>
         <div class="usage-card"><span>Output Tokens</span><strong>${num(totals.output)}</strong><small>generated answers</small></div>
         <div class="usage-card"><span>Web Searches</span><strong>${num(totals.web)}</strong><small>online fallback calls</small></div>
@@ -2159,6 +2255,12 @@
         <td class="nowrap">
           ${((d.mime_type||'').includes('pdf') || (d.file_name||'').toLowerCase().endsWith('.pdf')) && d.processing_status !== 'ready'
             ? `<button onclick="indexExistingPdf('${d.id}')">Index PDF</button>`
+            : ''}
+          ${isIndexableImageFile(d) && d.processing_status !== 'ready'
+            ? `<button onclick="indexExistingImage('${d.id}')">Index Image</button>`
+            : ''}
+          ${isIndexableOfficeFile(d) && d.processing_status !== 'ready'
+            ? `<button onclick="indexExistingOffice('${d.id}')">Index Office</button>`
             : ''}
           <button onclick="viewDocument('${d.id}')">View</button>
           <button onclick="editDoc('${d.id}')">Edit</button>
