@@ -355,6 +355,7 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const question = String(body?.question || "").trim();
     const requestedScope = String(body?.scope || "").trim();
+    const mode = String(body?.mode || "plant").trim().toLowerCase();
     if (!question) {
       return new Response(JSON.stringify({ error: "Question required" }), { status: 400, headers: { ...corsHeaders, "Content-Type":"application/json" }});
     }
@@ -367,6 +368,29 @@ Deno.serve(async (req) => {
     }
 
     const scope = requestedScope;
+
+    if (mode === "web") {
+      if (!allowOnlineWeb) {
+        return new Response(JSON.stringify({ error:"Online search is available to Admin only." }), {
+          status:403,
+          headers:{ ...corsHeaders, "Content-Type":"application/json" }
+        });
+      }
+      const online = await webFallback(openaiKey, model, question, scope);
+      await recordUsage(online.__usage, "web", scope);
+      delete online.__usage;
+      return new Response(JSON.stringify(online), {
+        headers:{ ...corsHeaders, "Content-Type":"application/json" }
+      });
+    }
+
+    if (mode !== "plant") {
+      return new Response(JSON.stringify({ error:"Invalid search mode." }), {
+        status:400,
+        headers:{ ...corsHeaders, "Content-Type":"application/json" }
+      });
+    }
+
     const ts = expandedSearchTerms(question, scope);
     const barePlantLookup = isBarePlantLookup(question);
 
@@ -407,21 +431,13 @@ Deno.serve(async (req) => {
 
     if (error) throw error;
     if (!docs?.length) {
-      if (!allowOnlineWeb || barePlantLookup) {
-        return new Response(JSON.stringify({
-          answer_lines:["No exact plant-document match found."],
-          sources:[],
-          web_sources:[],
-          source_type:"plant",
-          scope
-        }), {
-          headers:{ ...corsHeaders, "Content-Type":"application/json" }
-        });
-      }
-      const online = await webFallback(openaiKey, model, question, scope);
-      await recordUsage(online.__usage, "web", scope);
-      delete online.__usage;
-      return new Response(JSON.stringify(online), {
+      return new Response(JSON.stringify({
+        answer_lines:["No exact plant-document match found."],
+        sources:[],
+        web_sources:[],
+        source_type:"plant",
+        scope
+      }), {
         headers:{ ...corsHeaders, "Content-Type":"application/json" }
       });
     }
@@ -492,21 +508,13 @@ Deno.serve(async (req) => {
     });
 
     if (!top.length) {
-      if (!allowOnlineWeb || barePlantLookup) {
-        return new Response(JSON.stringify({
-          answer_lines:["No exact plant-document match found."],
-          sources:[],
-          web_sources:[],
-          source_type:"plant",
-          scope
-        }), {
-          headers:{ ...corsHeaders, "Content-Type":"application/json" }
-        });
-      }
-      const online = await webFallback(openaiKey, model, question, scope);
-      await recordUsage(online.__usage, "web", scope);
-      delete online.__usage;
-      return new Response(JSON.stringify(online), {
+      return new Response(JSON.stringify({
+        answer_lines:["No exact plant-document match found."],
+        sources:[],
+        web_sources:[],
+        source_type:"plant",
+        scope
+      }), {
         headers:{ ...corsHeaders, "Content-Type":"application/json" }
       });
     }
@@ -586,8 +594,19 @@ source_indices must contain only the source numbers that directly support the an
 
     const answerLines = Array.isArray(parsed?.answer_lines) ? parsed.answer_lines : [];
     if (isNoExact(answerLines)) {
-      if (!allowOnlineWeb || barePlantLookup) {
-        await recordUsage(plantUsage, "plant", scope);
+      await recordUsage(plantUsage, "plant", scope);
+      return new Response(JSON.stringify({
+        answer_lines:["No exact plant-document match found."],
+        sources:[],
+        web_sources:[],
+        source_type:"plant",
+        scope
+      }), {
+        headers:{ ...corsHeaders, "Content-Type":"application/json" }
+      });
+    }
+
+    await recordUsage(plantUsage, "plant", scope);
         return new Response(JSON.stringify({
           answer_lines:["No exact plant-document match found."],
           sources:[],
