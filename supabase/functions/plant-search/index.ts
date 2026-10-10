@@ -375,9 +375,21 @@ Deno.serve(async (req) => {
     }
 
     const chunks: Array<any> = [];
+    const pageLookup = new Map<string, Map<number, string>>();
+
     for (const d of docs) {
       const sourcePath = String(d?.metadata?.source_path || "");
-      for (const p of splitPages(d.extracted_text || "")) {
+      const pages = splitPages(d.extracted_text || "");
+      const docPages = new Map<number, string>();
+
+      for (const p of pages) {
+        if (p.page == null) continue;
+        const fullText = String(p.text || "").replace(/\s+/g, " ").trim();
+        if (fullText) docPages.set(Number(p.page), fullText);
+      }
+      pageLookup.set(String(d.id), docPages);
+
+      for (const p of pages) {
         const text = String(p.text || "").replace(/\s+/g, " ").trim();
         if (!text) continue;
         const score = scoreChunk(question, text, d.file_name || "", d.category || "", sourcePath);
@@ -389,13 +401,43 @@ Deno.serve(async (req) => {
           category:d.category,
           document_type:d.document_type,
           page:p.page,
-          text:text.slice(0, 2200)
+          text:text.slice(0, 2800)
         });
       }
     }
 
     chunks.sort((a,b) => b.score - a.score);
-    const top = chunks.slice(0, 8);
+
+    // Avoid feeding duplicate adjacent windows from the same document.
+    const ranked:Array<any> = [];
+    for (const c of chunks) {
+      const overlaps = ranked.some(x =>
+        x.document_id === c.document_id &&
+        Number.isFinite(Number(x.page)) &&
+        Number.isFinite(Number(c.page)) &&
+        Math.abs(Number(x.page) - Number(c.page)) <= 1
+      );
+      if (overlaps) continue;
+      ranked.push(c);
+      if (ranked.length >= 6) break;
+    }
+
+    // Technical tables often continue onto the next PDF page. Append that page
+    // to the same source window so equipment name + continuation specs stay together.
+    const top = ranked.map(c => {
+      const page = Number(c.page);
+      const pages = pageLookup.get(String(c.document_id));
+      const nextText = Number.isFinite(page) ? (pages?.get(page + 1) || "") : "";
+      const hasNext = Boolean(nextText);
+      const text = hasNext
+        ? `[[PAGE ${page}]] ${c.text}\n[[PAGE ${page + 1} — CONTINUATION]] ${nextText.slice(0, 3200)}`
+        : c.text;
+      return {
+        ...c,
+        text,
+        page_end: hasNext ? page + 1 : page
+      };
+    });
 
     if (!top.length) {
       if (!allowOnlineWeb) {
@@ -418,7 +460,7 @@ Deno.serve(async (req) => {
     }
 
     const context = top.map((c, i) =>
-      `[SOURCE ${i}]\nEquipment: ${c.category || ""}\nDocument: ${c.file_name || ""}\nPage: ${c.page ?? ""}\nText: ${c.text}`
+      `[SOURCE ${i}]\nEquipment: ${c.category || ""}\nDocument: ${c.file_name || ""}\nPages: ${c.page ?? ""}${c.page_end && c.page_end !== c.page ? "–" + c.page_end : ""}\nText: ${c.text}`
     ).join("\n\n");
 
     const instructions = `
@@ -429,6 +471,9 @@ If the context does not support the requested answer, say exactly: "No exact pla
 Rules:
 - One requested value: return one concise line "Parameter : Value".
 - Multiple values/specifications: return one parameter per line.
+- If the question is only an equipment/component name (for example "initial filling pump") and does not ask for one specific field, return ALL clearly associated technical specifications available in that equipment's table/record, one parameter per line.
+- A table/record may continue across an adjacent PDF page. Treat a labelled continuation page as part of the same equipment record when the supplied source window shows that continuity.
+- Keep parent-equipment and motor data clearly labelled separately, for example "Pump Make", "Pump Type", "Motor Make", "Motor Type".
 - Never dump raw PDF paragraphs.
 - Remove company headers, page headers, revision tables, and irrelevant text.
 - Keep equipment identity strict: pump != pump motor; fan != fan motor; actuator/bearing/gearbox data must not replace parent-equipment data unless asked.
@@ -483,7 +528,8 @@ source_indices must contain only the source numbers that directly support the an
       .map((x:any) => ({
         document_id:x.document_id,
         file_name:x.file_name,
-        page:x.page
+        page:x.page,
+        page_end:x.page_end || x.page
       }));
 
     const answerLines = Array.isArray(parsed?.answer_lines) ? parsed.answer_lines : [];
