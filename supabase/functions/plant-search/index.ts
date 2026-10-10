@@ -607,26 +607,6 @@ source_indices must contain only the source numbers that directly support the an
     }
 
     await recordUsage(plantUsage, "plant", scope);
-        return new Response(JSON.stringify({
-          answer_lines:["No exact plant-document match found."],
-          sources:[],
-          web_sources:[],
-          source_type:"plant",
-          scope
-        }), {
-          headers:{ ...corsHeaders, "Content-Type":"application/json" }
-        });
-      }
-
-      const online = await webFallback(openaiKey, model, question, scope);
-      await recordUsage(online.__usage, "web", scope);
-      delete online.__usage;
-      return new Response(JSON.stringify(online), {
-        headers:{ ...corsHeaders, "Content-Type":"application/json" }
-      });
-    }
-
-    await recordUsage(plantUsage, "plant", scope);
 
     return new Response(JSON.stringify({
       answer_lines:answerLines,
