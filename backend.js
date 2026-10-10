@@ -1810,6 +1810,11 @@
   };
 
   async function uploadRealFile(file, id, options = {}) {
+    const uploadContext = {
+      category: window.pp360UploadContext?.category || '',
+      section: window.pp360UploadContext?.section || '',
+      sourcePath: window.pp360UploadContext?.sourcePath || ''
+    };
     const bar = document.getElementById(id + '_bar');
     const pct = document.getElementById(id + '_pct');
     const status = document.getElementById(id + '_status');
@@ -1859,7 +1864,7 @@
       const { data: insertedRows, error: dbError } = await client().from('documents').insert({
         file_name: file.name,
         storage_path: storagePath,
-        category: (window.pp360UploadContext && window.pp360UploadContext.category) || guessCategory(file.name),
+        category: uploadContext.category || guessCategory(file.name),
         document_type: guessDocType(file.name),
         file_size: file.size,
         mime_type: file.type || null,
@@ -1867,8 +1872,8 @@
         uploaded_by: s.user.id,
         metadata: {
           original_name: file.name,
-          section: (window.pp360UploadContext && window.pp360UploadContext.section) || '',
-          source_path: (window.pp360UploadContext && window.pp360UploadContext.sourcePath) || ''
+          section: uploadContext.section || '',
+          source_path: uploadContext.sourcePath || ''
         }
       }).select('id').single();
 
@@ -1898,8 +1903,8 @@
             updated_at: new Date().toISOString(),
             metadata: {
               original_name: file.name,
-              section: (window.pp360UploadContext && window.pp360UploadContext.section) || '',
-              source_path: (window.pp360UploadContext && window.pp360UploadContext.sourcePath) || '',
+              section: uploadContext.section || '',
+              source_path: uploadContext.sourcePath || '',
               extraction_error: String(extractErr.message || extractErr)
             }
           }).eq('id', insertedRows.id);
@@ -1925,9 +1930,13 @@
         status.innerHTML = '<span class="oktext">✓ Secure upload completed</span>';
       }
 
-      if (!options.suppressReload) await loadDocsFromBackend();
+      if (!options.suppressReload) {
+        window.pp360UploadContext = null;
+        await loadDocsFromBackend();
+      }
       return true;
     } catch (err) {
+      if (!options.suppressReload) window.pp360UploadContext = null;
       bar.classList.add('errorbar');
       pct.textContent = 'Error';
       status.innerHTML = '<span class="errtext">✕ ' + esc(err.message || String(err)) + '</span>';
