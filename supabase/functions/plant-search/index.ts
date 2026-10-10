@@ -19,6 +19,51 @@ function tokens(q: string) {
   return [...new Set(norm(q).split(" ").filter(x => x.length > 2 && !STOP.has(x)))].slice(0, 8);
 }
 
+function queryAliases(q:string, scope:string) {
+  const n = norm(q);
+  const out = new Set<string>();
+
+  const add = (...xs:string[]) => xs.forEach(x => out.add(norm(x)));
+
+  if (scope === "CHP") {
+    if (/\b(primary screen|pre screen|pre-screen|vibrating screen)\b/.test(n)) {
+      add("primary screen","pre screen","pre-screen","vibrating screen","screen");
+    }
+    if (/\bbc ?-? ?3\b/.test(n)) add("bc-3","bc 3","belt conveyor 3");
+    if (/\bbc ?-? ?2\b/.test(n)) add("bc-2","bc 2","belt conveyor 2");
+    if (/\bbc ?-? ?1\b/.test(n)) add("bc-1","bc 1","belt conveyor 1");
+  }
+
+  if (scope === "WTP / ETP") {
+    if (/\binitial filling pump\b/.test(n)) add("initial filling pump","boiler initial filling pump");
+  }
+
+  if (scope === "CFBC Boiler") {
+    if (/\bbfp\b|boiler feed pump|bfw pump/.test(n)) add("bfp","bfw pump","boiler feed pump");
+    if (/\bpa fan\b|primary air fan/.test(n)) add("pa fan","primary air fan");
+    if (/\bsa fan\b|secondary air fan/.test(n)) add("sa fan","secondary air fan");
+    if (/\bid fan\b|induced draft fan/.test(n)) add("id fan","induced draft fan");
+  }
+
+  return [...out].filter(Boolean);
+}
+
+function isBarePlantLookup(q:string) {
+  const n = norm(q);
+  if (!n) return false;
+  if (/\b(what|why|how|when|where|who|define|meaning|explain|latest|method|methods|standard|standards|limit|limits|norm|norms|cpcb|moef|moefcc)\b/.test(n)) return false;
+  return n.split(/\s+/).filter(Boolean).length <= 5;
+}
+
+function expandedSearchTerms(q:string, scope:string) {
+  const out = new Set<string>(tokens(q));
+  for (const a of queryAliases(q, scope)) {
+    out.add(a);
+    for (const t of tokens(a)) out.add(t);
+  }
+  return [...out].filter(Boolean).slice(0, 14);
+}
+
 function inferScope(q: string) {
   const n = norm(q);
   const routes = [
@@ -47,11 +92,15 @@ function splitPages(extracted = "") {
 
 function scoreChunk(question: string, text: string, fileName: string, category: string, sourcePath: string) {
   const q = norm(question);
-  const ts = tokens(question);
+  const ts = expandedSearchTerms(question, category);
+  const aliases = queryAliases(question, category);
   const hay = norm([text, fileName, category, sourcePath].join(" "));
   let score = 0;
 
   if (q && hay.includes(q)) score += 160;
+  for (const a of aliases) {
+    if (a && hay.includes(a)) score += 140;
+  }
   for (const t of ts) {
     const count = hay.split(t).length - 1;
     score += Math.min(count, 8) * 22;
@@ -318,7 +367,8 @@ Deno.serve(async (req) => {
     }
 
     const scope = requestedScope;
-    const ts = tokens(question);
+    const ts = expandedSearchTerms(question, scope);
+    const barePlantLookup = isBarePlantLookup(question);
 
     let query = supabase
       .from("documents")
@@ -330,7 +380,9 @@ Deno.serve(async (req) => {
 
     // Limit candidate documents using lexical terms before page scoring.
     if (ts.length) {
-      const safe = ts.slice(0, 4).map(t => t.replace(/[,%()]/g, ""));
+      const safe = ts.slice(0, 8)
+        .map(t => t.replace(/[,%()]/g, "").trim())
+        .filter(Boolean);
       const clauses = safe.flatMap(t => [
         `extracted_text.ilike.%${t}%`,
         `file_name.ilike.%${t}%`
@@ -355,7 +407,7 @@ Deno.serve(async (req) => {
 
     if (error) throw error;
     if (!docs?.length) {
-      if (!allowOnlineWeb) {
+      if (!allowOnlineWeb || barePlantLookup) {
         return new Response(JSON.stringify({
           answer_lines:["No exact plant-document match found."],
           sources:[],
@@ -440,7 +492,7 @@ Deno.serve(async (req) => {
     });
 
     if (!top.length) {
-      if (!allowOnlineWeb) {
+      if (!allowOnlineWeb || barePlantLookup) {
         return new Response(JSON.stringify({
           answer_lines:["No exact plant-document match found."],
           sources:[],
@@ -494,7 +546,7 @@ source_indices must contain only the source numbers that directly support the an
       body:JSON.stringify({
         model,
         instructions,
-        input:`Question: ${question}\n\nPlant-document context:\n${context}`
+        input:`Question: ${question}\nKnown query aliases: ${queryAliases(question, scope).join(", ") || "none"}\n\nPlant-document context:\n${context}`
       })
     });
 
@@ -534,7 +586,7 @@ source_indices must contain only the source numbers that directly support the an
 
     const answerLines = Array.isArray(parsed?.answer_lines) ? parsed.answer_lines : [];
     if (isNoExact(answerLines)) {
-      if (!allowOnlineWeb) {
+      if (!allowOnlineWeb || barePlantLookup) {
         await recordUsage(plantUsage, "plant", scope);
         return new Response(JSON.stringify({
           answer_lines:["No exact plant-document match found."],
