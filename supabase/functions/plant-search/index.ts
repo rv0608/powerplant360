@@ -530,8 +530,7 @@ Answer ONLY from the supplied plant-document context. Do not use outside knowled
 If the context does not support the requested answer, say exactly: "No exact plant-document match found."
 
 Rules:
-- One requested value: return one concise line "Parameter : Value".
-- Multiple values/specifications: return one parameter per line.
+- One requested parameter/value: return exactly ONE concise line "Parameter : Value". Do not add related fields, alternate interpretations, commentary, notes, source discussion, or reasoning.\n- Multiple values/specifications explicitly requested by the user: return one parameter per line.
 - If the question is only an equipment/component name (for example "initial filling pump") and does not ask for one specific field, return ALL clearly associated technical specifications available in that equipment's table/record, one parameter per line.
 - A table/record may continue across an adjacent PDF page. Treat a labelled continuation page as part of the same equipment record when the supplied source window shows that continuity.
 - Keep parent-equipment and motor data clearly labelled separately, for example "Pump Make", "Pump Type", "Motor Make", "Motor Type".
@@ -555,7 +554,30 @@ source_indices must contain only the source numbers that directly support the an
       body:JSON.stringify({
         model,
         instructions,
-        input:`Question: ${question}\nKnown query aliases: ${queryAliases(question, scope).join(", ") || "none"}\n\nPlant-document context:\n${context}`
+        input:`Question: ${question}\nKnown query aliases: ${queryAliases(question, scope).join(", ") || "none"}\n\nPlant-document context:\n${context}`,
+        text:{
+          verbosity:"low",
+          format:{
+            type:"json_schema",
+            name:"plant_document_answer",
+            strict:true,
+            schema:{
+              type:"object",
+              properties:{
+                answer_lines:{
+                  type:"array",
+                  items:{type:"string"}
+                },
+                source_indices:{
+                  type:"array",
+                  items:{type:"integer"}
+                }
+              },
+              required:["answer_lines","source_indices"],
+              additionalProperties:false
+            }
+          }
+        }
       })
     });
 
@@ -568,14 +590,31 @@ source_indices must contain only the source numbers that directly support the an
     const ai = await aiRes.json();
     const plantUsage = usageFromResponse(ai, 0);
     const raw = extractResponseText(ai).trim();
-    let parsed:any;
+
+    let parsed:any = null;
     try {
-      parsed = JSON.parse(raw.replace(/^\`\`\`json\s*/i,"").replace(/\`\`\`$/,"").trim());
+      parsed = JSON.parse(raw);
     } catch {
-      parsed = { answer_lines: raw.split(/\n+/).map((x:string)=>x.trim()).filter(Boolean), source_indices:[0] };
+      console.error("Plant AI structured output parse failed", raw.slice(0,500));
     }
 
-    const sourceIndices = Array.isArray(parsed?.source_indices) ? parsed.source_indices : [0];
+    const cleanAnswerLine = (value:any) => String(value || "")
+      .replace(/[\uE000-\uF8FF]/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    const looksLikeMetaText = (value:string) =>
+      /\b(source_indices|need json|json valid|shouldn'?t|maybe return|could label|schema|internal reasoning|analysis:)\b/i.test(value);
+
+    let answerLinesSafe = Array.isArray(parsed?.answer_lines)
+      ? parsed.answer_lines.map(cleanAnswerLine).filter(Boolean)
+      : [];
+
+    answerLinesSafe = answerLinesSafe.filter((line:string) => !looksLikeMetaText(line));
+
+    const sourceIndices = Array.isArray(parsed?.source_indices)
+      ? parsed.source_indices.filter((x:any) => Number.isInteger(x) && x >= 0 && x < top.length)
+      : [];
     const seen = new Set<string>();
     const sources = sourceIndices
       .map((i:number) => top[i])
@@ -593,8 +632,8 @@ source_indices must contain only the source numbers that directly support the an
         page_end:x.page_end || x.page
       }));
 
-    const answerLines = Array.isArray(parsed?.answer_lines) ? parsed.answer_lines : [];
-    if (isNoExact(answerLines)) {
+    const answerLines = answerLinesSafe;
+    if (!parsed || !answerLines.length || isNoExact(answerLines)) {
       await recordUsage(plantUsage, "plant", scope);
       return new Response(JSON.stringify({
         answer_lines:["No exact plant-document match found."],
