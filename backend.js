@@ -2329,13 +2329,202 @@
     await loadDocsFromBackend();
   };
 
+  function isSpreadsheetDocument(d) {
+    const name = String(d?.file_name || '').toLowerCase();
+    const mime = String(d?.mime_type || '').toLowerCase();
+    return /\.(xlsx|xls|csv)$/.test(name) ||
+      mime.includes('spreadsheet') ||
+      mime.includes('ms-excel') ||
+      mime === 'text/csv';
+  }
+
+  function spreadsheetQueryTokens() {
+    const raw = document.getElementById('q')?.value || '';
+    return norm(raw).split(' ').filter(x => x.length >= 2 && !['what','is','the','of','for','show','give','please','data','details','detail'].includes(x));
+  }
+
+  function scoreSpreadsheetRows(rows, sheetName, queryTokens) {
+    if (!queryTokens.length) return { score:0, matchRow:-1 };
+    let bestScore = 0;
+    let bestRow = -1;
+    const sheetNorm = norm(sheetName || '');
+    for (let r=0; r<rows.length; r++) {
+      const rowNorm = norm((rows[r] || []).join(' '));
+      let score = 0;
+      for (const t of queryTokens) {
+        if (rowNorm.includes(t)) score += 4;
+        if (sheetNorm.includes(t)) score += 2;
+      }
+      if (queryTokens.every(t => rowNorm.includes(t))) score += 12;
+      if (score > bestScore) {
+        bestScore = score;
+        bestRow = r;
+      }
+    }
+    return { score:bestScore, matchRow:bestRow };
+  }
+
+  function closeSpreadsheetPreview() {
+    document.getElementById('spreadsheetPreviewModal')?.remove();
+    window.pp360SpreadsheetPreview = null;
+  }
+  window.closeSpreadsheetPreview = closeSpreadsheetPreview;
+
+  function renderSpreadsheetSheet(sheetName, showAll=false) {
+    const state = window.pp360SpreadsheetPreview;
+    const body = document.getElementById('spreadsheetPreviewBody');
+    const meta = document.getElementById('spreadsheetPreviewMeta');
+    if (!state || !body) return;
+
+    const rows = state.rowsBySheet[sheetName] || [];
+    const matchRow = state.matchesBySheet[sheetName]?.matchRow ?? -1;
+    const tokens = state.queryTokens || [];
+
+    let start = 0;
+    let end = rows.length;
+    if (!showAll && rows.length > 300) {
+      if (matchRow >= 0) {
+        start = Math.max(0, matchRow - 20);
+        end = Math.min(rows.length, start + 120);
+      } else {
+        end = Math.min(rows.length, 120);
+      }
+    }
+
+    const visible = rows.slice(start,end);
+    const maxCols = Math.min(60, visible.reduce((m,row)=>Math.max(m,(row||[]).length),0));
+    let html = '<table class="sheet-preview-table"><tbody>';
+
+    for (let i=0; i<visible.length; i++) {
+      const absoluteRow = start + i;
+      const row = visible[i] || [];
+      const rowText = norm(row.join(' '));
+      const rowMatch = tokens.length && tokens.some(t => rowText.includes(t));
+      html += '<tr' + (rowMatch ? ' class="sheet-match-row"' : '') + '>';
+      html += '<th class="sheet-rownum">' + (absoluteRow + 1) + '</th>';
+      for (let c=0; c<maxCols; c++) {
+        const val = row[c] == null ? '' : String(row[c]);
+        const cellNorm = norm(val);
+        const cellMatch = tokens.length && tokens.some(t => cellNorm.includes(t));
+        html += '<td' + (cellMatch ? ' class="sheet-match-cell"' : '') + '>' + esc(val) + '</td>';
+      }
+      html += '</tr>';
+    }
+    html += '</tbody></table>';
+
+    body.innerHTML = html || '<div class="notice">This worksheet has no visible cell data.</div>';
+
+    if (meta) {
+      const matchText = matchRow >= 0 ? ' • closest match around row ' + (matchRow + 1) : '';
+      const rangeText = rows.length > end-start
+        ? ' • showing rows ' + (start + 1) + '–' + end + ' of ' + rows.length
+        : ' • ' + rows.length + ' rows';
+      meta.innerHTML = '<b>' + esc(sheetName) + '</b>' + matchText + rangeText +
+        ((!showAll && rows.length > 300)
+          ? ' <button class="linkbtn" onclick="renderSpreadsheetSheet(' + JSON.stringify(sheetName).replace(/"/g,'&quot;') + ',true)">Show all rows</button>'
+          : '');
+    }
+
+    document.querySelectorAll('.sheet-tab').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.sheet === sheetName);
+    });
+
+    setTimeout(() => {
+      document.querySelector('#spreadsheetPreviewBody .sheet-match-row')?.scrollIntoView({block:'center'});
+    }, 30);
+  }
+  window.renderSpreadsheetSheet = renderSpreadsheetSheet;
+
+  async function previewSpreadsheet(d) {
+    if (!window.XLSX) {
+      alert('Spreadsheet viewer is still loading. Please press ↻ refresh and try again.');
+      return;
+    }
+
+    const existing = document.getElementById('spreadsheetPreviewModal');
+    if (existing) existing.remove();
+
+    document.body.insertAdjacentHTML('beforeend', `
+      <div class="modalback" id="spreadsheetPreviewModal">
+        <div class="spreadsheet-modalbox">
+          <div class="spreadsheet-preview-head">
+            <div>
+              <h3>Supporting Spreadsheet</h3>
+              <div class="muted small">${esc(d.file_name || 'Spreadsheet')}</div>
+            </div>
+            <button onclick="closeSpreadsheetPreview()">Close</button>
+          </div>
+          <div id="spreadsheetSheetTabs" class="sheet-tabs"></div>
+          <div id="spreadsheetPreviewMeta" class="sheet-preview-meta">Loading workbook…</div>
+          <div id="spreadsheetPreviewBody" class="spreadsheet-preview-scroll">
+            <div class="muted">Opening spreadsheet securely…</div>
+          </div>
+        </div>
+      </div>`);
+
+    try {
+      const { data: blob, error } = await client().storage
+        .from('plant-documents')
+        .download(d.storage_path);
+      if (error || !blob) throw error || new Error('Could not read spreadsheet.');
+
+      const buf = await blob.arrayBuffer();
+      const wb = XLSX.read(buf, {type:'array', cellDates:true});
+      const rowsBySheet = {};
+      const matchesBySheet = {};
+      const queryTokens = spreadsheetQueryTokens();
+
+      let bestSheet = wb.SheetNames[0] || '';
+      let bestScore = -1;
+
+      for (const name of wb.SheetNames) {
+        const sheet = wb.Sheets[name];
+        const rows = XLSX.utils.sheet_to_json(sheet, {
+          header:1,
+          defval:'',
+          raw:false,
+          blankrows:false
+        });
+        rowsBySheet[name] = rows;
+        const match = scoreSpreadsheetRows(rows,name,queryTokens);
+        matchesBySheet[name] = match;
+        if (match.score > bestScore) {
+          bestScore = match.score;
+          bestSheet = name;
+        }
+      }
+
+      window.pp360SpreadsheetPreview = {
+        file:d,
+        workbook:wb,
+        rowsBySheet,
+        matchesBySheet,
+        queryTokens
+      };
+
+      const tabs = document.getElementById('spreadsheetSheetTabs');
+      if (tabs) {
+        tabs.innerHTML = wb.SheetNames.map(name =>
+          '<button class="sheet-tab" data-sheet="' + esc(name) + '" onclick="renderSpreadsheetSheet(' +
+          JSON.stringify(name).replace(/"/g,'&quot;') + ')">' + esc(name) + '</button>'
+        ).join('');
+      }
+
+      if (!bestSheet) throw new Error('No worksheets were found in this workbook.');
+      renderSpreadsheetSheet(bestSheet);
+    } catch (err) {
+      const body = document.getElementById('spreadsheetPreviewBody');
+      if (body) body.innerHTML = '<div class="notice">Could not preview spreadsheet: ' + esc(err?.message || String(err)) + '</div>';
+    }
+  }
+
   async function viewDocument(id, page=null) {
     let d = docs.find(x => x.id === id);
 
     if (!d) {
       const { data, error } = await client()
         .from('documents')
-        .select('id,file_name,storage_path')
+        .select('id,file_name,storage_path,mime_type')
         .eq('id', id)
         .single();
 
@@ -2344,6 +2533,11 @@
         return;
       }
       d = data;
+    }
+
+    if (isSpreadsheetDocument(d)) {
+      await previewSpreadsheet(d);
+      return;
     }
 
     const { data, error } = await client().storage
@@ -2473,17 +2667,22 @@
       const id = src?.document_id || src?.id;
       if (!id || seen.has(id)) continue;
       seen.add(id);
+      const fileName = String(src?.file_name || '');
+      const isSheet = /\.(xlsx|xls|csv)$/i.test(fileName);
       const page = Number(src?.page);
       const pageEnd = Number(src?.page_end);
       const safePage = Number.isFinite(page) && page > 0 ? Math.floor(page) : null;
       const safeEnd = Number.isFinite(pageEnd) && pageEnd >= page ? Math.floor(pageEnd) : safePage;
-      const pageArg = safePage ? ',' + safePage : '';
-      const pageLabel = safePage
-        ? (safeEnd && safeEnd > safePage
-            ? ' · Pages ' + safePage + '–' + safeEnd
-            : ' · Page ' + safePage)
-        : '';
-      buttons.push('<button onclick="viewDocument(\'' + id + '\'' + pageArg + ')">View supporting document' + pageLabel + '</button>');
+      const pageArg = (!isSheet && safePage) ? ',' + safePage : '';
+      const pageLabel = isSheet
+        ? ''
+        : (safePage
+            ? (safeEnd && safeEnd > safePage
+                ? ' · Pages ' + safePage + '–' + safeEnd
+                : ' · Page ' + safePage)
+            : '');
+      const buttonLabel = isSheet ? 'View supporting spreadsheet' : 'View supporting document' + pageLabel;
+      buttons.push('<button onclick="viewDocument(\'' + id + '\'' + pageArg + ')">' + buttonLabel + '</button>');
       if (buttons.length >= 3) break;
     }
 
