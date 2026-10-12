@@ -2065,6 +2065,222 @@
   };
 
 
+  function indexedPdfPageMap(extractedText='') {
+    const map = new Map();
+    const source = String(extractedText || '');
+    const re = /\[\[PAGE (\d+)\]\]\n?/g;
+    const matches = [...source.matchAll(re)];
+
+    for (let i=0; i<matches.length; i++) {
+      const page = Number(matches[i][1]);
+      if (!Number.isInteger(page) || page < 1) continue;
+      const start = Number(matches[i].index) + matches[i][0].length;
+      const end = i + 1 < matches.length ? Number(matches[i+1].index) : source.length;
+      map.set(page, source.slice(start,end).trim());
+    }
+    return map;
+  }
+
+  function weakPdfPages(d) {
+    const map = indexedPdfPageMap(d?.extracted_text || '');
+    const pageCount = Number(d?.page_count || 0);
+    const already = new Set(
+      Array.isArray(d?.metadata?.vision_indexed_pages)
+        ? d.metadata.vision_indexed_pages.map(Number).filter(x => Number.isInteger(x) && x > 0)
+        : []
+    );
+    const weak = [];
+
+    for (let page=1; page<=pageCount; page++) {
+      if (already.has(page)) continue;
+
+      const raw = String(map.get(page) || '');
+      const cleaned = raw
+        .replace(/shri\s+girija\s+alloy\s*&?\s*power[^\n]*/gi,' ')
+        .replace(/private\s+limited/gi,' ')
+        .replace(/survey\s+no[^\n]*/gi,' ')
+        .replace(/east\s+godavari[^\n]*/gi,' ')
+        .replace(/peddapuram[^\n]*/gi,' ')
+        .replace(/\bpage\s*\d+\b/gi,' ')
+        .replace(/\s+/g,' ')
+        .trim();
+
+      const wordCount = cleaned ? cleaned.split(/\s+/).filter(Boolean).length : 0;
+      const engineeringSignals = (cleaned.match(/\b(?:kw|rpm|bar|kg|mm|tph|volt|amp|capacity|type|model|make|size|pressure|temperature|flow|efficiency|screen|pump|fan|motor|transformer|conveyor|bearing|valve)\b/gi) || []).length;
+
+      if (cleaned.length < 180 || wordCount < 28 || (cleaned.length < 320 && engineeringSignals < 3)) {
+        weak.push(page);
+      }
+    }
+
+    return weak;
+  }
+
+  async function renderPdfPageForVision(pdf, pageNumber) {
+    const page = await pdf.getPage(pageNumber);
+    const base = page.getViewport({scale:1});
+    const maxWidth = 1800;
+    const maxHeight = 2400;
+    let scale = Math.min(2.2, maxWidth / Math.max(base.width,1), maxHeight / Math.max(base.height,1));
+    scale = Math.max(1.35, scale);
+
+    const viewport = page.getViewport({scale});
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d', {alpha:false});
+    canvas.width = Math.ceil(viewport.width);
+    canvas.height = Math.ceil(viewport.height);
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+
+    await page.render({canvasContext:ctx,viewport}).promise;
+    return canvas.toDataURL('image/jpeg',0.88);
+  }
+
+  async function invokeVisionPdfPage(documentId, pageNumber, imageData) {
+    const { data: sessionData } = await client().auth.getSession();
+    const token = sessionData?.session?.access_token;
+    if (!token) throw new Error('Session expired. Please log in again.');
+
+    const endpoint = cfg.supabaseUrl.replace(/\/$/,'') + '/functions/v1/vision-index-pdf-page';
+    const res = await fetch(endpoint, {
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json',
+        'Authorization':'Bearer ' + token,
+        'apikey':cfg.supabaseKey
+      },
+      body:JSON.stringify({
+        document_id:documentId,
+        page_number:pageNumber,
+        image_data:imageData
+      })
+    });
+
+    if (!res.ok) {
+      let detail = '';
+      try {
+        const payload = await res.json();
+        detail = String(payload?.error || payload?.message || '').trim();
+      } catch (_) {}
+      throw new Error(detail || ('Vision indexing failed with status ' + res.status));
+    }
+    return await res.json();
+  }
+
+  function closeVisionPdfModal() {
+    document.getElementById('visionPdfModal')?.remove();
+  }
+  window.closeVisionPdfModal = closeVisionPdfModal;
+
+  async function visionIndexPdf(id) {
+    if (backendRole !== 'admin') return;
+    const d = docs.find(x => x.id === id);
+    if (!d || !isPdfDocument(d)) return;
+
+    if (!window.pdfjsLib) {
+      alert('PDF reader library is not available. Press ↻ refresh and try again.');
+      return;
+    }
+
+    const weak = weakPdfPages(d);
+    if (!weak.length) {
+      alert('No weak/scanned pages were detected in this PDF.');
+      return;
+    }
+
+    const batch = weak.slice(0,12);
+    const remaining = Math.max(0, weak.length - batch.length);
+    let message = 'Vision Index PDF detected ' + weak.length + ' weak/scanned page(s).\n\n';
+    message += 'This run will process Page(s): ' + batch.join(', ');
+    if (remaining) message += '\n\n' + remaining + ' additional page(s) can be processed in another run.';
+    message += '\n\nAI vision uses API credit. Continue?';
+
+    if (!confirm(message)) return;
+
+    const modalHtml =
+      '<div class="modalback" id="visionPdfModal">' +
+        '<div class="vision-modalbox">' +
+          '<div class="spreadsheet-preview-head">' +
+            '<div><h3>Vision Index PDF</h3><div class="muted small">' + esc(d.file_name) + '</div></div>' +
+          '</div>' +
+          '<div class="notice"><b>Scanning only weak pages.</b> Original PDF is not modified.</div>' +
+          '<div class="progress" style="margin-top:14px"><div class="progressbar" id="visionPdfBar" style="width:0%"></div></div>' +
+          '<div id="visionPdfPct" class="muted small" style="margin-top:6px">0%</div>' +
+          '<div id="visionPdfStatus" class="vision-status">Preparing PDF…</div>' +
+          '<div id="visionPdfLog" class="vision-log"></div>' +
+        '</div>' +
+      '</div>';
+
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+    const bar = document.getElementById('visionPdfBar');
+    const pct = document.getElementById('visionPdfPct');
+    const status = document.getElementById('visionPdfStatus');
+    const log = document.getElementById('visionPdfLog');
+
+    let ok = 0;
+    let failed = 0;
+
+    try {
+      const { data: blob, error: downloadError } = await client().storage
+        .from('plant-documents')
+        .download(d.storage_path);
+      if (downloadError || !blob) throw downloadError || new Error('Could not download PDF.');
+
+      const buf = await blob.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({data:buf}).promise;
+
+      for (let i=0; i<batch.length; i++) {
+        const pageNumber = batch[i];
+        status.textContent = 'Rendering page ' + pageNumber + '…';
+
+        try {
+          const imageData = await renderPdfPageForVision(pdf,pageNumber);
+          status.textContent = 'Reading page ' + pageNumber + ' with AI vision…';
+          const result = await invokeVisionPdfPage(d.id,pageNumber,imageData);
+          ok++;
+          log.insertAdjacentHTML(
+            'beforeend',
+            '<div>✓ Page ' + pageNumber +
+              (result?.no_engineering_data ? ' — no engineering data found' : ' — indexed') +
+            '</div>'
+          );
+        } catch (pageErr) {
+          failed++;
+          log.insertAdjacentHTML(
+            'beforeend',
+            '<div class="errtext">✕ Page ' + pageNumber + ' — ' + esc(pageErr?.message || String(pageErr)) + '</div>'
+          );
+        }
+
+        const progress = Math.round(((i+1)/batch.length)*100);
+        if (bar) bar.style.width = progress + '%';
+        if (pct) pct.textContent = progress + '%';
+      }
+
+      await loadDocsFromBackend();
+      if (document.getElementById('apiUsage')) await loadApiUsage();
+
+      status.innerHTML =
+        '<span class="oktext">Vision indexing completed: ' + ok + ' page(s) indexed' +
+        (failed ? ' • ' + failed + ' failed' : '') +
+        (remaining ? ' • run again for remaining weak pages' : '') +
+        '.</span>';
+
+      log.insertAdjacentHTML(
+        'beforeend',
+        '<div class="actions" style="margin-top:12px"><button class="primary" onclick="closeVisionPdfModal()">Close</button></div>'
+      );
+    } catch (err) {
+      status.innerHTML = '<span class="errtext">Vision Index PDF failed: ' + esc(err?.message || String(err)) + '</span>';
+      log.insertAdjacentHTML(
+        'beforeend',
+        '<div class="actions" style="margin-top:12px"><button onclick="closeVisionPdfModal()">Close</button></div>'
+      );
+    }
+  }
+  window.visionIndexPdf = visionIndexPdf;
+
   async function indexExistingPdf(id) {
     const d = docs.find(x => x.id === id);
     if (!d) return;
@@ -2266,6 +2482,9 @@
         <td class="nowrap">
           ${((d.mime_type||'').includes('pdf') || (d.file_name||'').toLowerCase().endsWith('.pdf')) && d.processing_status !== 'ready'
             ? `<button onclick="indexExistingPdf('${d.id}')">Index PDF</button>`
+            : ''}
+          ${isPdfDocument(d) && d.processing_status === 'ready'
+            ? `<button onclick="visionIndexPdf('${d.id}')">Vision Index PDF</button>`
             : ''}
           ${isIndexableImageFile(d) && d.processing_status !== 'ready'
             ? `<button onclick="indexExistingImage('${d.id}')">Index Image</button>`
