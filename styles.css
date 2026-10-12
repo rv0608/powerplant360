@@ -305,3 +305,31 @@ details p{margin:9px 0 2px;line-height:1.55}
   .spreadsheet-modalbox{width:96vw;height:90vh;padding:10px}
   .sheet-preview-table{font-size:.8rem}
 }
+
+
+/* Vision Index PDF */
+.vision-modalbox{
+  width:min(680px,96vw);
+  max-height:88vh;
+  overflow:auto;
+  background:var(--card);
+  color:var(--ink);
+  border-radius:16px;
+  padding:18px;
+  box-shadow:0 20px 60px rgba(0,0,0,.28);
+}
+.vision-status{
+  margin-top:14px;
+  font-weight:700;
+}
+.vision-log{
+  margin-top:12px;
+  max-height:320px;
+  overflow:auto;
+  border:1px solid var(--line);
+  border-radius:10px;
+  padding:10px 12px;
+  background:var(--soft);
+  line-height:1.5;
+}
+.vision-log > div{padding:3px 0}
