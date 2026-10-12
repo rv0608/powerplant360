@@ -140,28 +140,46 @@ Deno.serve(async (req) => {
 
     const body = await req.json().catch(() => ({}));
     const documentId = String(body?.document_id || "").trim();
-    const pageNumber = Number(body?.page_number);
-    const imageData = String(body?.image_data || "").trim();
 
-    if (!documentId || !Number.isInteger(pageNumber) || pageNumber < 1 || !imageData) {
-      return new Response(JSON.stringify({error:"document_id, page_number and image_data are required."}), {
+    const rawPages = Array.isArray(body?.pages)
+      ? body.pages
+      : [{ page_number:body?.page_number, image_data:body?.image_data }];
+
+    const pages = rawPages
+      .slice(0,4)
+      .map((p:any) => ({
+        page_number:Number(p?.page_number),
+        image_data:String(p?.image_data || "").trim()
+      }));
+
+    if (!documentId || !pages.length) {
+      return new Response(JSON.stringify({error:"document_id and at least one rendered PDF page are required."}), {
         status:400,
         headers:{...corsHeaders,"Content-Type":"application/json"}
       });
     }
 
-    if (!/^data:image\/(jpeg|jpg|png|webp);base64,/i.test(imageData)) {
-      return new Response(JSON.stringify({error:"Invalid page image format."}), {
-        status:400,
-        headers:{...corsHeaders,"Content-Type":"application/json"}
-      });
-    }
+    for (const p of pages) {
+      if (!Number.isInteger(p.page_number) || p.page_number < 1 || !p.image_data) {
+        return new Response(JSON.stringify({error:"Every page needs a valid page_number and image_data."}), {
+          status:400,
+          headers:{...corsHeaders,"Content-Type":"application/json"}
+        });
+      }
 
-    if (imageData.length > 12_000_000) {
-      return new Response(JSON.stringify({error:"Rendered page image is too large. Please retry with a lower render scale."}), {
-        status:413,
-        headers:{...corsHeaders,"Content-Type":"application/json"}
-      });
+      if (!/^data:image\/(jpeg|jpg|png|webp);base64,/i.test(p.image_data)) {
+        return new Response(JSON.stringify({error:"Invalid page image format."}), {
+          status:400,
+          headers:{...corsHeaders,"Content-Type":"application/json"}
+        });
+      }
+
+      if (p.image_data.length > 12_000_000) {
+        return new Response(JSON.stringify({error:"A rendered page image is too large. Please retry with a lower render scale."}), {
+          status:413,
+          headers:{...corsHeaders,"Content-Type":"application/json"}
+        });
+      }
     }
 
     const {data:doc,error:docError} = await admin
@@ -178,23 +196,43 @@ Deno.serve(async (req) => {
       throw new Error("Vision Index PDF can only process PDF documents.");
     }
 
-    if (doc.page_count && pageNumber > Number(doc.page_count)) {
-      throw new Error("Page number is outside this PDF.");
+    if (doc.page_count && pages.some((p:any) => p.page_number > Number(doc.page_count))) {
+      throw new Error("A page number is outside this PDF.");
     }
 
     const instructions = `
-You are indexing one scanned page from a private thermal-power-plant engineering PDF.
-Transcribe ONLY information visibly supported by this page image. Never infer missing values.
+You are indexing one or more scanned pages from a private thermal-power-plant engineering PDF.
+Transcribe ONLY information visibly supported by each page image. Never infer missing values.
 
-Output plain text optimized for later search:
+For each supplied PDF page, extract its engineering data independently.
+Output searchable engineering text for each page:
 - Preserve equipment names, tag numbers, headings, model numbers, units, symbols and numeric values exactly as visible.
 - For a technical table, write the table heading first, then one "Parameter: Value" line per row.
 - If one row contains multiple engineering fields, keep them on one clear line separated by " | ".
 - Preserve distinctions such as Pre-Screen/Post-Screen, Primary/Secondary, Pump/Motor, A/B equipment, and units.
 - Ignore decorative logos, repeated company headers, page furniture and empty cells unless they carry engineering meaning.
 - Do not add general engineering knowledge, explanations, calculations or corrections.
-- If the page has no meaningful engineering text/table, output exactly: NO_ENGINEERING_DATA
+- If a page has no meaningful engineering text/table, return an empty text value and mark no_engineering_data=true
 `.trim();
+
+    const content:any[] = [{
+      type:"input_text",
+      text:"Document: " + fileName +
+        "\nDepartment: " + (doc.category || "General") +
+        "\nExtract searchable engineering data separately for every supplied PDF page."
+    }];
+
+    for (const p of pages) {
+      content.push({
+        type:"input_text",
+        text:"PDF PAGE " + p.page_number
+      });
+      content.push({
+        type:"input_image",
+        image_url:p.image_data,
+        detail:"high"
+      });
+    }
 
     const aiRes = await fetch("https://api.openai.com/v1/responses", {
       method:"POST",
@@ -207,19 +245,36 @@ Output plain text optimized for later search:
         instructions,
         input:[{
           role:"user",
-          content:[
-            {
-              type:"input_text",
-              text:`Document: ${fileName}\nDepartment: ${doc.category || "General"}\nPDF page: ${pageNumber}\nExtract searchable engineering data from this scanned page.`
-            },
-            {
-              type:"input_image",
-              image_url:imageData,
-              detail:"high"
-            }
-          ]
+          content
         }],
-        text:{verbosity:"low"}
+        text:{
+          verbosity:"low",
+          format:{
+            type:"json_schema",
+            name:"vision_pdf_batch",
+            strict:true,
+            schema:{
+              type:"object",
+              properties:{
+                pages:{
+                  type:"array",
+                  items:{
+                    type:"object",
+                    properties:{
+                      page_number:{type:"integer"},
+                      text:{type:"string"},
+                      no_engineering_data:{type:"boolean"}
+                    },
+                    required:["page_number","text","no_engineering_data"],
+                    additionalProperties:false
+                  }
+                }
+              },
+              required:["pages"],
+              additionalProperties:false
+            }
+          }
+        }
       })
     });
 
@@ -230,21 +285,60 @@ Output plain text optimized for later search:
     }
 
     const ai = await aiRes.json();
-    let extracted = extractResponseText(ai)
-      .replace(/^```(?:text)?\s*/i,"")
-      .replace(/```$/,"")
-      .trim();
+    const raw = extractResponseText(ai).trim();
 
-    if (!extracted) extracted = "NO_ENGINEERING_DATA";
+    let parsed:any = null;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      console.error("Vision batch structured output parse failed", raw.slice(0,500));
+    }
 
-    const currentPages = Array.isArray(doc?.metadata?.vision_indexed_pages)
-      ? doc.metadata.vision_indexed_pages.map((x:any) => Number(x)).filter((x:number) => Number.isInteger(x) && x > 0)
+    const requestedPages = new Set(pages.map((p:any) => p.page_number));
+    let results = Array.isArray(parsed?.pages)
+      ? parsed.pages
+          .map((r:any) => ({
+            page_number:Number(r?.page_number),
+            text:String(r?.text || "").trim(),
+            no_engineering_data:Boolean(r?.no_engineering_data)
+          }))
+          .filter((r:any) => requestedPages.has(r.page_number))
       : [];
 
-    const nextPages = [...new Set([...currentPages,pageNumber])].sort((a,b)=>a-b);
-    const mergedText = extracted === "NO_ENGINEERING_DATA"
-      ? String(doc.extracted_text || "")
-      : mergeVisionPage(String(doc.extracted_text || ""), pageNumber, extracted);
+    for (const p of pages) {
+      if (!results.some((r:any) => r.page_number === p.page_number)) {
+        results.push({
+          page_number:p.page_number,
+          text:"",
+          no_engineering_data:true
+        });
+      }
+    }
+    results.sort((a:any,b:any) => a.page_number - b.page_number);
+
+    const currentPages = Array.isArray(doc?.metadata?.vision_indexed_pages)
+      ? doc.metadata.vision_indexed_pages
+          .map((x:any) => Number(x))
+          .filter((x:number) => Number.isInteger(x) && x > 0)
+      : [];
+
+    const nextPages = [
+      ...new Set([
+        ...currentPages,
+        ...results.map((r:any) => r.page_number)
+      ])
+    ].sort((a,b)=>a-b);
+
+    let mergedText = String(doc.extracted_text || "");
+    for (const r of results) {
+      if (!r.no_engineering_data && r.text) {
+        mergedText = mergeVisionPage(
+          mergedText,
+          r.page_number,
+          r.text
+        );
+      }
+    }
 
     const nextMetadata = {
       ...(doc.metadata || {}),
@@ -281,9 +375,7 @@ Output plain text optimized for later search:
     return new Response(JSON.stringify({
       ok:true,
       document_id:documentId,
-      page_number:pageNumber,
-      characters:extracted === "NO_ENGINEERING_DATA" ? 0 : extracted.length,
-      no_engineering_data:extracted === "NO_ENGINEERING_DATA"
+      results
     }), {
       headers:{...corsHeaders,"Content-Type":"application/json"}
     });
