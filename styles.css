@@ -231,3 +231,77 @@ details p{margin:9px 0 2px;line-height:1.55}
 .online-reference-note{font-size:13px;margin:0 0 10px;color:#667085}
 .online-sources{display:flex;flex-direction:column;gap:7px;margin-top:14px;padding-top:12px;border-top:1px solid #e7ebef}
 .online-source-link{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+
+/* In-app Excel/CSV supporting-document preview */
+.spreadsheet-modalbox{
+  width:min(1220px,96vw);
+  height:min(88vh,900px);
+  background:var(--card);
+  color:var(--ink);
+  border-radius:16px;
+  padding:16px;
+  box-shadow:0 20px 60px rgba(0,0,0,.28);
+  display:flex;
+  flex-direction:column;
+  min-width:0;
+}
+.spreadsheet-preview-head{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:12px;
+  margin-bottom:10px;
+}
+.spreadsheet-preview-head h3{margin:0 0 3px}
+.sheet-tabs{
+  display:flex;
+  gap:6px;
+  overflow-x:auto;
+  padding:4px 0 8px;
+}
+.sheet-tab{white-space:nowrap}
+.sheet-tab.active{font-weight:800;border-color:var(--ink)}
+.sheet-preview-meta{
+  padding:8px 0;
+  color:var(--muted);
+  font-size:.9rem;
+}
+.spreadsheet-preview-scroll{
+  overflow:auto;
+  flex:1;
+  border:1px solid var(--line);
+  border-radius:10px;
+  background:var(--card);
+}
+.sheet-preview-table{
+  border-collapse:collapse;
+  width:max-content;
+  min-width:100%;
+  font-size:.9rem;
+}
+.sheet-preview-table td,.sheet-preview-table th{
+  border:1px solid var(--line);
+  padding:7px 9px;
+  text-align:left;
+  vertical-align:top;
+  white-space:nowrap;
+}
+.sheet-rownum{
+  position:sticky;
+  left:0;
+  z-index:2;
+  background:var(--soft);
+  color:var(--muted);
+  font-weight:700;
+}
+.sheet-match-row td{font-weight:700}
+.sheet-match-cell{
+  background:var(--soft);
+  outline:2px solid var(--line);
+  outline-offset:-2px;
+}
+@media(max-width:760px){
+  .spreadsheet-modalbox{width:96vw;height:90vh;padding:10px}
+  .sheet-preview-table{font-size:.8rem}
+}
