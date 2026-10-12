@@ -26,8 +26,15 @@ function queryAliases(q:string, scope:string) {
   const add = (...xs:string[]) => xs.forEach(x => out.add(norm(x)));
 
   if (scope === "CHP") {
-    if (/\b(primary screen|pre screen|pre-screen|vibrating screen)\b/.test(n)) {
-      add("primary screen","pre screen","pre-screen","vibrating screen","screen");
+    if (/\b(primary screen|pre screen|pre-screen)\b/.test(n)) {
+      add("primary screen","pre screen","pre-screen","vibrating screen pre-screen","vibrating screen");
+    }
+    if (/\b(secondary screen|post screen|post-screen)\b/.test(n)) {
+      add("secondary screen","post screen","post-screen","vibrating screen post-screen","vibrating screen");
+    }
+    if (/\bvibrating screen\b/.test(n) &&
+        !/\b(primary|secondary|pre[- ]?screen|post[- ]?screen)\b/.test(n)) {
+      add("vibrating screen","primary screen","pre screen","pre-screen","secondary screen","post screen","post-screen");
     }
     if (/\bbc ?-? ?3\b/.test(n)) add("bc-3","bc 3","belt conveyor 3");
     if (/\bbc ?-? ?2\b/.test(n)) add("bc-2","bc 2","belt conveyor 2");
@@ -538,6 +545,8 @@ Rules:
 - For reservoir/tank level queries, use only values explicitly shown for that requested level. Do not interpolate, calculate, estimate, or mix values from another level.
 - Multiple values/specifications explicitly requested by the user: return one parameter per line.
 - If the question is only an equipment/component name (for example "initial filling pump") and does not ask for one specific field, return ALL clearly associated technical specifications available in that equipment's table/record, one parameter per line.
+- CHP terminology: "Pre-Screen" and "Primary Screen" are the same equipment; "Post-Screen" and "Secondary Screen" are the same equipment.
+- If the user asks only for "vibrating screen" and the supplied context contains both Pre/Primary and Post/Secondary screen records, return both records and clearly label them "Primary / Pre-Screen" and "Secondary / Post-Screen".
 - A table/record may continue across an adjacent PDF page. Treat a labelled continuation page as part of the same equipment record when the supplied source window shows that continuity.
 - Keep parent-equipment and motor data clearly labelled separately, for example "Pump Make", "Pump Type", "Motor Make", "Motor Type".
 - Never dump raw PDF paragraphs.
