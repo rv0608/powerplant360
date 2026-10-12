@@ -2472,19 +2472,31 @@
         <th>Name</th><th>Category</th><th>Type</th><th>Size</th>
         <th>Uploaded</th><th>Status</th><th>Actions</th>
       </tr>
-      ${list.map(d => `<tr>
+      ${list.map(d => {
+        const visionPages = Array.isArray(d?.metadata?.vision_indexed_pages)
+          ? d.metadata.vision_indexed_pages.map(Number).filter(x => Number.isInteger(x) && x > 0)
+          : [];
+        const visionCount = new Set(visionPages).size;
+        const visionStatus = visionCount
+          ? ' <span class="badge">Vision: ' + visionCount + ' page' + (visionCount === 1 ? '' : 's') + '</span>'
+          : '';
+        const visionButtonLabel = visionCount
+          ? 'Vision Index PDF · ' + visionCount + ' done'
+          : 'Vision Index PDF';
+
+        return `<tr>
         <td><b>${esc(d.file_name)}</b></td>
         <td>${esc(d.category || 'General')}</td>
         <td>${esc(d.document_type || 'Other')}</td>
         <td>${formatBytes(d.file_size)}</td>
         <td>${d.created_at ? new Date(d.created_at).toLocaleString() : '—'}</td>
-        <td><span class="badge ok">${esc(d.processing_status || 'uploaded')}</span></td>
+        <td><span class="badge ok">${esc(d.processing_status || 'uploaded')}</span>${visionStatus}</td>
         <td class="nowrap">
           ${((d.mime_type||'').includes('pdf') || (d.file_name||'').toLowerCase().endsWith('.pdf')) && d.processing_status !== 'ready'
             ? `<button onclick="indexExistingPdf('${d.id}')">Index PDF</button>`
             : ''}
           ${isPdfDocument(d) && d.processing_status === 'ready'
-            ? `<button onclick="visionIndexPdf('${d.id}')">Vision Index PDF</button>`
+            ? `<button onclick="visionIndexPdf('${d.id}')">${visionButtonLabel}</button>`
             : ''}
           ${isIndexableImageFile(d) && d.processing_status !== 'ready'
             ? `<button onclick="indexExistingImage('${d.id}')">Index Image</button>`
@@ -2496,7 +2508,8 @@
           <button onclick="editDoc('${d.id}')">Edit</button>
           <button class="dangerbtn" onclick="del('${d.id}')">Delete</button>
         </td>
-      </tr>`).join('')}
+      </tr>`;
+      }).join('')}
     </table></div>`;
   };
 
