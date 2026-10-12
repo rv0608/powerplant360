@@ -369,6 +369,9 @@ Deno.serve(async (req) => {
     }
 
     const scope = requestedScope;
+    const reservoirDualValueQuery =
+      /\b(reservoir|storage tank|water tank|tank capacity)\b/i.test(question) &&
+      /\b(capacity|level|volume|stock|mtr|meter|metre)\b/i.test(question);
 
     if (mode === "web") {
       if (!allowOnlineWeb) {
@@ -530,7 +533,10 @@ Answer ONLY from the supplied plant-document context. Do not use outside knowled
 If the context does not support the requested answer, say exactly: "No exact plant-document match found."
 
 Rules:
-- One requested parameter/value: return exactly ONE concise line "Parameter : Value". Do not add related fields, alternate interpretations, commentary, notes, source discussion, or reasoning.\n- Multiple values/specifications explicitly requested by the user: return one parameter per line.
+- One requested parameter/value: return exactly ONE concise line "Parameter : Value". Do not add related fields, alternate interpretations, commentary, notes, source discussion, or reasoning.
+- RESERVOIR/TANK EXCEPTION: when "Reservoir dual-value query" is YES and the supplied plant context contains both values at the requested level, ALWAYS return exactly two separate lines: "Total Volume : <value>" and "Usable Stock : <value>". Never omit either value.
+- For reservoir/tank level queries, use only values explicitly shown for that requested level. Do not interpolate, calculate, estimate, or mix values from another level.
+- Multiple values/specifications explicitly requested by the user: return one parameter per line.
 - If the question is only an equipment/component name (for example "initial filling pump") and does not ask for one specific field, return ALL clearly associated technical specifications available in that equipment's table/record, one parameter per line.
 - A table/record may continue across an adjacent PDF page. Treat a labelled continuation page as part of the same equipment record when the supplied source window shows that continuity.
 - Keep parent-equipment and motor data clearly labelled separately, for example "Pump Make", "Pump Type", "Motor Make", "Motor Type".
@@ -554,7 +560,7 @@ source_indices must contain only the source numbers that directly support the an
       body:JSON.stringify({
         model,
         instructions,
-        input:`Question: ${question}\nKnown query aliases: ${queryAliases(question, scope).join(", ") || "none"}\n\nPlant-document context:\n${context}`,
+        input:`Question: ${question}\nReservoir dual-value query: ${reservoirDualValueQuery ? "YES" : "NO"}\nKnown query aliases: ${queryAliases(question, scope).join(", ") || "none"}\n\nPlant-document context:\n${context}`,
         text:{
           verbosity:"low",
           format:{
