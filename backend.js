@@ -2329,6 +2329,12 @@
     await loadDocsFromBackend();
   };
 
+  function isPdfDocument(d) {
+    const name = String(d?.file_name || '').toLowerCase();
+    const mime = String(d?.mime_type || '').toLowerCase();
+    return mime.includes('pdf') || name.endsWith('.pdf');
+  }
+
   function isSpreadsheetDocument(d) {
     const name = String(d?.file_name || '').toLowerCase();
     const mime = String(d?.mime_type || '').toLowerCase();
@@ -2538,6 +2544,15 @@
     if (isSpreadsheetDocument(d)) {
       await previewSpreadsheet(d);
       return;
+    }
+
+    if (isPdfDocument(d)) {
+      const pageNum = Number(page);
+      const pageText = Number.isFinite(pageNum) && pageNum > 0
+        ? ' at Page ' + Math.floor(pageNum)
+        : '';
+      const ok = confirm('Open supporting PDF' + pageText + '?');
+      if (!ok) return;
     }
 
     const { data, error } = await client().storage
