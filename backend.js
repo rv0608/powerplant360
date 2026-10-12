@@ -2136,7 +2136,7 @@
     return canvas.toDataURL('image/jpeg',0.88);
   }
 
-  async function invokeVisionPdfPage(documentId, pageNumber, imageData) {
+  async function invokeVisionPdfBatch(documentId, renderedPages) {
     const { data: sessionData } = await client().auth.getSession();
     const token = sessionData?.session?.access_token;
     if (!token) throw new Error('Session expired. Please log in again.');
@@ -2151,8 +2151,7 @@
       },
       body:JSON.stringify({
         document_id:documentId,
-        page_number:pageNumber,
-        image_data:imageData
+        pages:renderedPages
       })
     });
 
@@ -2162,7 +2161,7 @@
         const payload = await res.json();
         detail = String(payload?.error || payload?.message || '').trim();
       } catch (_) {}
-      throw new Error(detail || ('Vision indexing failed with status ' + res.status));
+      throw new Error(detail || ('Vision batch indexing failed with status ' + res.status));
     }
     return await res.json();
   }
@@ -2203,7 +2202,7 @@
           '<div class="spreadsheet-preview-head">' +
             '<div><h3>Vision Index PDF</h3><div class="muted small">' + esc(d.file_name) + '</div></div>' +
           '</div>' +
-          '<div class="notice"><b>Scanning only weak pages.</b> Original PDF is not modified.</div>' +
+          '<div class="notice"><b>Fast Batch Vision:</b> up to 4 weak pages per AI call. Original PDF is not modified.</div>' +
           '<div class="progress" style="margin-top:14px"><div class="progressbar" id="visionPdfBar" style="width:0%"></div></div>' +
           '<div id="visionPdfPct" class="muted small" style="margin-top:6px">0%</div>' +
           '<div id="visionPdfStatus" class="vision-status">Preparing PDF…</div>' +
@@ -2230,30 +2229,58 @@
       const buf = await blob.arrayBuffer();
       const pdf = await pdfjsLib.getDocument({data:buf}).promise;
 
-      for (let i=0; i<batch.length; i++) {
-        const pageNumber = batch[i];
-        status.textContent = 'Rendering page ' + pageNumber + '…';
+      const groupSize = 4;
+
+      for (let start=0; start<batch.length; start+=groupSize) {
+        const group = batch.slice(start,start+groupSize);
+        const label = group.length === 1
+          ? 'page ' + group[0]
+          : 'pages ' + group[0] + '–' + group[group.length-1];
+
+        status.textContent = 'Rendering ' + label + '…';
 
         try {
-          const imageData = await renderPdfPageForVision(pdf,pageNumber);
-          status.textContent = 'Reading page ' + pageNumber + ' with AI vision…';
-          const result = await invokeVisionPdfPage(d.id,pageNumber,imageData);
-          ok++;
-          log.insertAdjacentHTML(
-            'beforeend',
-            '<div>✓ Page ' + pageNumber +
-              (result?.no_engineering_data ? ' — no engineering data found' : ' — indexed') +
-            '</div>'
+          const images = await Promise.all(
+            group.map(async pageNumber => ({
+              page_number:pageNumber,
+              image_data:await renderPdfPageForVision(pdf,pageNumber)
+            }))
           );
-        } catch (pageErr) {
-          failed++;
-          log.insertAdjacentHTML(
-            'beforeend',
-            '<div class="errtext">✕ Page ' + pageNumber + ' — ' + esc(pageErr?.message || String(pageErr)) + '</div>'
-          );
+
+          status.textContent = 'Reading ' + label + ' with AI vision…';
+          const result = await invokeVisionPdfBatch(d.id,images);
+          const results = Array.isArray(result?.results) ? result.results : [];
+
+          for (const pageNumber of group) {
+            const r = results.find(x => Number(x?.page_number) === Number(pageNumber));
+            if (r) {
+              ok++;
+              log.insertAdjacentHTML(
+                'beforeend',
+                '<div>✓ Page ' + pageNumber +
+                  (r?.no_engineering_data ? ' — no engineering data found' : ' — indexed') +
+                '</div>'
+              );
+            } else {
+              failed++;
+              log.insertAdjacentHTML(
+                'beforeend',
+                '<div class="errtext">✕ Page ' + pageNumber + ' — no batch result returned</div>'
+              );
+            }
+          }
+        } catch (groupErr) {
+          failed += group.length;
+          for (const pageNumber of group) {
+            log.insertAdjacentHTML(
+              'beforeend',
+              '<div class="errtext">✕ Page ' + pageNumber + ' — ' + esc(groupErr?.message || String(groupErr)) + '</div>'
+            );
+          }
         }
 
-        const progress = Math.round(((i+1)/batch.length)*100);
+        const completed = Math.min(start + group.length,batch.length);
+        const progress = Math.round((completed/batch.length)*100);
         if (bar) bar.style.width = progress + '%';
         if (pct) pct.textContent = progress + '%';
       }
