@@ -2549,17 +2549,7 @@
         const visionTotalWeak = visionCount + visionRemaining;
         const visionComplete = isPdfDocument(d) && visionRemaining === 0;
 
-        const visionStatus = isPdfDocument(d)
-          ? (
-              visionTotalWeak > 0
-                ? ' <span class="badge ' + (visionComplete ? 'ok' : '') + '">Vision: ' +
-                    visionCount + ' / ' + visionTotalWeak +
-                    ' weak pages' +
-                    (visionRemaining ? ' · ' + visionRemaining + ' remaining' : ' · complete') +
-                  '</span>'
-                : ' <span class="badge ok">Vision: no weak pages</span>'
-            )
-          : '';
+        const visionStatus = '';
 
         const visionButtonLabel = visionComplete
           ? 'Vision Complete'
@@ -2575,7 +2565,7 @@
         <td>${esc(d.document_type || 'Other')}</td>
         <td>${formatBytes(d.file_size)}</td>
         <td>${d.created_at ? new Date(d.created_at).toLocaleString() : '—'}</td>
-        <td><span class="badge ok">${esc(d.processing_status || 'uploaded')}</span>${visionStatus}</td>
+        <td><span class="badge ok">${esc(d.processing_status || 'uploaded')}</span></td>
         <td class="nowrap">
           ${((d.mime_type||'').includes('pdf') || (d.file_name||'').toLowerCase().endsWith('.pdf')) && d.processing_status !== 'ready'
             ? `<button onclick="indexExistingPdf('${d.id}')">Index PDF</button>`
