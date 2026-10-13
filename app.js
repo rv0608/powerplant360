@@ -779,7 +779,7 @@ function del(i){
 }
 function calcPower(){let p=Math.sqrt(3)*(+volt.value)*(+amp.value)*(+pf.value)/1000;document.getElementById('calc').innerHTML=`<b>Power = ${isFinite(p)?p.toFixed(2):0} kW</b>`}
 
-document.getElementById('q').addEventListener('keydown',e=>{if(e.key==='Enter')searchAll()});
+// Enter key is handled by backend.js so only one Plant Data search runs.
 document.getElementById('theme').onclick=()=>document.body.classList.toggle('dark');
 // Service worker disabled in local-test build. It will be enabled after HTTPS deployment.
 renderTabs();show('Home');
