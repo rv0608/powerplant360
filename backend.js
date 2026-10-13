@@ -2987,6 +2987,57 @@
     return '<div class="card result compactresult"><div class="ai-answer-badge">' + badge + '</div>' + sourceNote + lineHtml + (isWeb ? onlineActions : plantActions) + '</div>';
   }
 
+  function startSearchProgress(btn) {
+    let value = 6;
+    let timer = null;
+
+    const paint = (pct) => {
+      const safe = Math.max(0, Math.min(100, Math.round(pct)));
+      const fill = document.getElementById('plantSearchProgressFill');
+      const label = document.getElementById('plantSearchProgressPct');
+
+      if (fill) fill.style.width = safe + '%';
+      if (label) label.textContent = safe + '%';
+
+      if (btn) {
+        btn.textContent = safe + '%';
+        btn.style.setProperty('--pp-search-progress', safe + '%');
+      }
+    };
+
+    renderTabs();
+    const view = document.getElementById('view');
+    if (view) {
+      view.innerHTML =
+        '<div class="card result compactresult plant-search-progress-card">' +
+          '<div class="plant-search-progress-track">' +
+            '<div id="plantSearchProgressFill" class="plant-search-progress-fill" style="width:6%"></div>' +
+            '<div id="plantSearchProgressPct" class="plant-search-progress-pct">6%</div>' +
+          '</div>' +
+        '</div>';
+    }
+
+    paint(value);
+
+    timer = setInterval(() => {
+      if (value >= 92) return;
+      if (value < 45) value += 4;
+      else if (value < 72) value += 2;
+      else value += 1;
+      paint(value);
+    }, 420);
+
+    return {
+      complete() {
+        if (timer) clearInterval(timer);
+        paint(100);
+      },
+      stop() {
+        if (timer) clearInterval(timer);
+      }
+    };
+  }
+
   window.pp360Search = async function () {
     const raw = document.getElementById('q')?.value.trim() || '';
     if (!raw) return;
@@ -3008,16 +3059,15 @@
       return searchAll();
     }
 
-    try {
-      if (btn) { btn.disabled = true; btn.textContent = 'Thinking…'; }
+    let progress = null;
 
-      renderTabs();
-      document.getElementById('view').innerHTML =
-        '<div class="card result compactresult">' +
-          '<div class="ai-answer-badge">Plant Data</div>' +
-          '<div class="onelineanswer"><b>Searching ' + esc(scopeValue) + ' documents…</b></div>' +
-          '<div class="muted small" style="margin-top:8px">Plant documents only. Use Online Search separately if needed.</div>' +
-        '</div>';
+    try {
+      if (btn) {
+        btn.disabled = true;
+        btn.classList.add('search-progress-button');
+      }
+
+      progress = startSearchProgress(btn);
 
       const { data: sessionData } = await client().auth.getSession();
       const token = sessionData?.session?.access_token;
@@ -3052,9 +3102,12 @@
 
       history = [raw, ...history.filter(x => norm(x) !== norm(raw))].slice(0,30);
       localStorage.setItem('pp360history',JSON.stringify(history));
+      if (progress) progress.complete();
+      await new Promise(resolve => setTimeout(resolve, 140));
       renderTabs();
       document.getElementById('view').innerHTML = renderRagAnswer(payload);
     } catch (err) {
+      if (progress) progress.stop();
       const rawMessage = String(err?.message || err || 'Unknown Plant AI error');
       const safeMessage = rawMessage
         .replace(/sk-[A-Za-z0-9_-]+/g, '[hidden API key]')
@@ -3066,6 +3119,8 @@
     } finally {
       if (btn) {
         btn.disabled = false;
+        btn.classList.remove('search-progress-button');
+        btn.style.removeProperty('--pp-search-progress');
         btn.textContent = oldText || 'Search Plant Data';
       }
     }
