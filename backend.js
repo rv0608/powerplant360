@@ -1634,6 +1634,17 @@
       <div id="dropZone" class="dropzone" tabindex="0">
         <div class="dropicon">⬆️</div>
         <h3>Drag & drop files here</h3>
+
+        <div class="paste-upload-category">
+          <label for="uploadCategory">Upload to department</label>
+          <select id="uploadCategory">
+            <option value="">Auto detect from filename</option>
+            ${categories.map(c => `<option>${c}</option>`).join('')}
+          </select>
+        </div>
+
+        <div class="paste-upload-hint"><b>Paste screenshot:</b> click this box, then press <b>Ctrl+V</b></div>
+
         <p>or</p>
         <label class="uploadchoose">Choose Files
           <input id="file" type="file" multiple
@@ -1675,6 +1686,7 @@
     </div>`;
 
     setupDropZone();
+    setupAdminClipboardPaste();
     await loadDocsFromBackend();
     await loadApiUsage();
   };
@@ -1710,9 +1722,71 @@
     return name.replace(/[^a-zA-Z0-9._-]+/g, '_');
   }
 
+  function setupAdminClipboardPaste() {
+    const dz = document.getElementById('dropZone');
+    if (!dz || dz.dataset.pasteReady === '1') return;
+    dz.dataset.pasteReady = '1';
+
+    dz.addEventListener('click', (e) => {
+      if (!e.target.closest('select,option,label,input,button,a')) dz.focus();
+    });
+
+    dz.addEventListener('paste', (e) => {
+      if (backendRole !== 'admin') return;
+
+      const items = [...(e.clipboardData?.items || [])];
+      const imageItems = items.filter(item =>
+        item.kind === 'file' && /^image\//i.test(item.type || '')
+      );
+
+      if (!imageItems.length) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+
+      const category = document.getElementById('uploadCategory')?.value || '';
+      if (!category) {
+        alert('Please select "Upload to department" before pasting a screenshot.');
+        document.getElementById('uploadCategory')?.focus();
+        return;
+      }
+
+      const now = new Date();
+      const stamp =
+        now.getFullYear().toString() +
+        String(now.getMonth()+1).padStart(2,'0') +
+        String(now.getDate()).padStart(2,'0') + '_' +
+        String(now.getHours()).padStart(2,'0') +
+        String(now.getMinutes()).padStart(2,'0') +
+        String(now.getSeconds()).padStart(2,'0');
+
+      const slug = category
+        .replace(/[^A-Za-z0-9]+/g,'_')
+        .replace(/^_+|_+$/g,'') || 'Plant';
+
+      const files = imageItems.map((item,index) => {
+        const blob = item.getAsFile();
+        const mime = blob?.type || 'image/png';
+        const ext = mime.includes('jpeg') ? 'jpg' : mime.includes('webp') ? 'webp' : 'png';
+        const name = slug + '_Screenshot_' + stamp +
+          (imageItems.length > 1 ? '_' + (index+1) : '') + '.' + ext;
+        return new File([blob], name, {type:mime, lastModified:Date.now()});
+      }).filter(Boolean);
+
+      if (!files.length) return;
+
+      dz.classList.add('paste-received');
+      setTimeout(() => dz.classList.remove('paste-received'),700);
+
+      processSelectedFiles(files);
+    });
+  }
+
   processSelectedFiles = function (files) {
     const q = document.getElementById('uploadQueue');
     if (!q) return;
+
+    const selectedCategory = document.getElementById('uploadCategory')?.value || '';
 
     files.forEach(file => {
       const id = safeId();
@@ -1730,7 +1804,7 @@
           </div>
           <div class="uploadstatus muted" id="${id}_status">Waiting…</div>
         </div>`);
-      uploadRealFile(file, id);
+      uploadRealFile(file, id, { category:selectedCategory });
     });
   };
 
@@ -1811,9 +1885,9 @@
 
   async function uploadRealFile(file, id, options = {}) {
     const uploadContext = {
-      category: window.pp360UploadContext?.category || '',
-      section: window.pp360UploadContext?.section || '',
-      sourcePath: window.pp360UploadContext?.sourcePath || ''
+      category: options.category || window.pp360UploadContext?.category || '',
+      section: options.section || window.pp360UploadContext?.section || '',
+      sourcePath: options.sourcePath || window.pp360UploadContext?.sourcePath || ''
     };
     const bar = document.getElementById(id + '_bar');
     const pct = document.getElementById(id + '_pct');
