@@ -2833,13 +2833,120 @@
     }
   }
 
+  function isVisionIndexedPdfPage(d, page) {
+    const pageNum = Number(page);
+    if (!Number.isInteger(pageNum) || pageNum < 1) return false;
+    const pages = Array.isArray(d?.metadata?.vision_indexed_pages)
+      ? d.metadata.vision_indexed_pages.map(Number)
+      : [];
+    return pages.includes(pageNum);
+  }
+
+  function closePdfImagePreview() {
+    document.getElementById('pdfImagePreviewModal')?.remove();
+  }
+  window.closePdfImagePreview = closePdfImagePreview;
+
+  async function openOriginalPdfFromPreview(id, page=null) {
+    let d = docs.find(x => x.id === id);
+    if (!d) {
+      const { data, error } = await client()
+        .from('documents')
+        .select('id,file_name,storage_path,mime_type,metadata,page_count')
+        .eq('id',id)
+        .single();
+      if (error || !data) {
+        alert('Could not find this document.');
+        return;
+      }
+      d = data;
+    }
+
+    const { data, error } = await client().storage
+      .from('plant-documents')
+      .createSignedUrl(d.storage_path,600);
+
+    if (error || !data?.signedUrl) {
+      alert('Could not open original PDF.');
+      return;
+    }
+
+    const pageNum = Number(page);
+    const target = Number.isFinite(pageNum) && pageNum > 0
+      ? data.signedUrl + '#page=' + Math.floor(pageNum)
+      : data.signedUrl;
+
+    const w = window.open(target,'_blank');
+    if (!w) window.location.href = target;
+  }
+  window.openOriginalPdfFromPreview = openOriginalPdfFromPreview;
+
+  async function previewVisionPdfPage(d, page) {
+    if (!window.pdfjsLib) {
+      alert('PDF preview library is not available. Press ↻ refresh and try again.');
+      return;
+    }
+
+    const pageNum = Math.floor(Number(page));
+    if (!Number.isFinite(pageNum) || pageNum < 1) {
+      alert('Exact supporting page is unavailable.');
+      return;
+    }
+
+    document.getElementById('pdfImagePreviewModal')?.remove();
+
+    document.body.insertAdjacentHTML('beforeend',
+      '<div class="modalback" id="pdfImagePreviewModal">' +
+        '<div class="pdf-image-modalbox">' +
+          '<div class="spreadsheet-preview-head">' +
+            '<div><h3>Supporting PDF Page</h3>' +
+              '<div class="muted small">' + esc(d.file_name || 'PDF') + ' · Page ' + pageNum + '</div>' +
+            '</div>' +
+            '<button onclick="closePdfImagePreview()">Close</button>' +
+          '</div>' +
+          '<div id="pdfImagePreviewBody" class="pdf-image-preview-body">' +
+            '<div class="muted">Rendering supporting page…</div>' +
+          '</div>' +
+          '<div class="actions pdf-preview-actions">' +
+            '<button onclick="openOriginalPdfFromPreview(\'' + d.id + '\',' + pageNum + ')">Open original PDF</button>' +
+          '</div>' +
+        '</div>' +
+      '</div>');
+
+    try {
+      const { data: blob, error } = await client().storage
+        .from('plant-documents')
+        .download(d.storage_path);
+
+      if (error || !blob) throw error || new Error('Could not read supporting PDF.');
+
+      const buf = await blob.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({data:buf}).promise;
+
+      if (pageNum > pdf.numPages) throw new Error('Supporting page is outside this PDF.');
+
+      const imageData = await renderPdfPageForVision(pdf,pageNum);
+      const body = document.getElementById('pdfImagePreviewBody');
+      if (body) {
+        body.innerHTML =
+          '<img class="pdf-page-preview-image" src="' + imageData + '" alt="Supporting PDF page ' + pageNum + '">';
+      }
+    } catch (err) {
+      const body = document.getElementById('pdfImagePreviewBody');
+      if (body) {
+        body.innerHTML = '<div class="notice">Could not render supporting page: ' +
+          esc(err?.message || String(err)) + '</div>';
+      }
+    }
+  }
+
   async function viewDocument(id, page=null) {
     let d = docs.find(x => x.id === id);
 
     if (!d) {
       const { data, error } = await client()
         .from('documents')
-        .select('id,file_name,storage_path,mime_type')
+        .select('id,file_name,storage_path,mime_type,metadata,page_count')
         .eq('id', id)
         .single();
 
@@ -2860,6 +2967,14 @@
       const pageText = Number.isFinite(pageNum) && pageNum > 0
         ? ' at Page ' + Math.floor(pageNum)
         : '';
+
+      if (isVisionIndexedPdfPage(d,pageNum)) {
+        const ok = confirm('Preview supporting PDF' + pageText + ' as an image?');
+        if (!ok) return;
+        await previewVisionPdfPage(d,pageNum);
+        return;
+      }
+
       const ok = confirm('Open supporting PDF' + pageText + '?');
       if (!ok) return;
     }
