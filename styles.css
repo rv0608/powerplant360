@@ -333,3 +333,48 @@ details p{margin:9px 0 2px;line-height:1.55}
   line-height:1.5;
 }
 .vision-log > div{padding:3px 0}
+
+
+/* Plant Data search progress */
+.plant-search-progress-card{
+  padding:18px 20px;
+}
+.plant-search-progress-track{
+  position:relative;
+  height:28px;
+  overflow:hidden;
+  border-radius:999px;
+  background:#e8eef3;
+  border:1px solid #d7e0e7;
+}
+.plant-search-progress-fill{
+  position:absolute;
+  inset:0 auto 0 0;
+  width:0;
+  background:#22a447;
+  transition:width .38s ease;
+}
+.plant-search-progress-pct{
+  position:absolute;
+  inset:0;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-weight:800;
+  color:#15351f;
+  mix-blend-mode:multiply;
+}
+.search-ai button.search-progress-button{
+  position:relative;
+  overflow:hidden;
+  color:#102814;
+  background:
+    linear-gradient(
+      90deg,
+      #5fd879 0,
+      #5fd879 var(--pp-search-progress,0%),
+      #ffd36a var(--pp-search-progress,0%),
+      #ffd36a 100%
+    );
+  transition:background .25s linear;
+}
