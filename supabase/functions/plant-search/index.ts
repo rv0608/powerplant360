@@ -46,6 +46,7 @@ function queryAliases(q:string, scope:string) {
   }
 
   if (scope === "CFBC Boiler") {
+    if (/\bdcf\b|drag chain feeder/.test(n)) add("dcf","drag chain feeder","drag chain feeders");
     if (/\bbfp\b|boiler feed pump|bfw pump/.test(n)) add("bfp","bfw pump","boiler feed pump");
     if (/\bpa fan\b|primary air fan/.test(n)) add("pa fan","primary air fan");
     if (/\bsa fan\b|secondary air fan/.test(n)) add("sa fan","secondary air fan");
@@ -545,6 +546,7 @@ Rules:
 - For reservoir/tank level queries, use only values explicitly shown for that requested level. Do not interpolate, calculate, estimate, or mix values from another level.
 - Multiple values/specifications explicitly requested by the user: return one parameter per line.
 - If the question is only an equipment/component name (for example "initial filling pump") and does not ask for one specific field, return ALL clearly associated technical specifications available in that equipment's table/record, one parameter per line.
+- CFBC Boiler terminology: "DCF" means "Drag Chain Feeder" / "Drag Chain Feeders". For a bare DCF query, return "DCF : Drag Chain Feeder(s)" when supported by the supplied plant context.
 - CHP terminology: "Pre-Screen" and "Primary Screen" are the same equipment; "Post-Screen" and "Secondary Screen" are the same equipment.
 - If the user asks only for "vibrating screen" and the supplied context contains both Pre/Primary and Post/Secondary screen records, return both records and clearly label them "Primary / Pre-Screen" and "Secondary / Post-Screen".
 - A table/record may continue across an adjacent PDF page. Treat a labelled continuation page as part of the same equipment record when the supplied source window shows that continuity.
