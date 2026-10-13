@@ -2611,7 +2611,7 @@
 
     wrap.innerHTML = `<div class="table-scroll"><table class="doctable">
       <tr>
-        <th>Name</th><th>Category</th><th>Type</th><th>Size</th>
+        <th>Name</th><th>Category</th><th>Type</th><th>Size</th><th>Pages</th>
         <th>Uploaded</th><th>Status</th><th>Actions</th>
       </tr>
       ${list.map(d => {
@@ -2638,6 +2638,11 @@
         <td>${esc(d.category || 'General')}</td>
         <td>${esc(d.document_type || 'Other')}</td>
         <td>${formatBytes(d.file_size)}</td>
+        <td>${
+          Number(d.page_count || 0) > 0
+            ? Number(d.page_count)
+            : (isIndexableImageFile(d) ? 1 : '—')
+        }</td>
         <td>${d.created_at ? new Date(d.created_at).toLocaleString() : '—'}</td>
         <td><span class="badge ok">${esc(d.processing_status || 'uploaded')}</span></td>
         <td class="nowrap">
