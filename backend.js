@@ -2189,9 +2189,18 @@
 
     const batch = weak.slice(0,12);
     const remaining = Math.max(0, weak.length - batch.length);
-    let message = 'Vision Index PDF detected ' + weak.length + ' weak/scanned page(s).\n\n';
-    message += 'This run will process Page(s): ' + batch.join(', ');
-    if (remaining) message += '\n\n' + remaining + ' additional page(s) can be processed in another run.';
+    const alreadyDone = Array.isArray(d?.metadata?.vision_indexed_pages)
+      ? new Set(
+          d.metadata.vision_indexed_pages
+            .map(Number)
+            .filter(x => Number.isInteger(x) && x > 0)
+        ).size
+      : 0;
+    const totalWeak = alreadyDone + weak.length;
+
+    let message = 'Vision Index PDF progress: ' + alreadyDone + ' / ' + totalWeak + ' weak/scanned pages processed.\n\n';
+    message += weak.length + ' page(s) remain. This run will process Page(s): ' + batch.join(', ');
+    if (remaining) message += '\n\n' + remaining + ' page(s) will remain for another run.';
     message += '\n\nAI vision uses API credit. Continue?';
 
     if (!confirm(message)) return;
@@ -2454,24 +2463,24 @@
       return mime.includes('pdf') || name.endsWith('.pdf');
     });
 
-    const visionProcessed = visionPdfs.filter(d => {
-      const pages = Array.isArray(d?.metadata?.vision_indexed_pages)
-        ? d.metadata.vision_indexed_pages
-        : [];
-      return pages.some(x => Number.isInteger(Number(x)) && Number(x) > 0);
-    }).length;
-
-    const visionPagesTotal = visionPdfs.reduce((sum,d) => {
+    const visionStats = visionPdfs.map(d => {
       const pages = Array.isArray(d?.metadata?.vision_indexed_pages)
         ? d.metadata.vision_indexed_pages
             .map(Number)
             .filter(x => Number.isInteger(x) && x > 0)
         : [];
-      return sum + new Set(pages).size;
-    },0);
+      const processed = new Set(pages).size;
+      const remaining = weakPdfPages(d).length;
+      const totalWeak = processed + remaining;
+      return { d, processed, remaining, totalWeak };
+    });
+
+    const visionCompleted = visionStats.filter(x => x.remaining === 0).length;
+    const visionPagesProcessed = visionStats.reduce((sum,x) => sum + x.processed,0);
+    const visionPagesTotalWeak = visionStats.reduce((sum,x) => sum + x.totalWeak,0);
 
     const visionPct = visionPdfs.length
-      ? Math.min(100,(visionProcessed / visionPdfs.length) * 100)
+      ? Math.min(100,(visionCompleted / visionPdfs.length) * 100)
       : 0;
 
     const level = p => p >= 90 ? 'danger' : p >= 75 ? 'warn' : 'good';
@@ -2498,9 +2507,9 @@
         <div class="usage-card"><span>Storage Remaining</span><strong>${formatBytes(remaining)}</strong><small>${esc(note)}</small></div>
         <div class="usage-card">
           <span>Vision Index Status</span>
-          <strong>${visionProcessed} / ${visionPdfs.length} PDFs processed</strong>
+          <strong>${visionCompleted} / ${visionPdfs.length} PDFs complete</strong>
           <div class="usage-track"><div class="usage-fill good" style="width:${visionPct.toFixed(1)}%"></div></div>
-          <small>${visionPagesTotal} page${visionPagesTotal === 1 ? '' : 's'} vision-indexed • ${visionPct.toFixed(0)}% of PDF documents started</small>
+          <small>${visionPagesProcessed} / ${visionPagesTotalWeak || visionPagesProcessed} weak pages processed • ${visionPct.toFixed(0)}% documents complete</small>
         </div>
       </div>
     `;
@@ -2536,12 +2545,29 @@
           ? d.metadata.vision_indexed_pages.map(Number).filter(x => Number.isInteger(x) && x > 0)
           : [];
         const visionCount = new Set(visionPages).size;
-        const visionStatus = visionCount
-          ? ' <span class="badge">Vision: ' + visionCount + ' page' + (visionCount === 1 ? '' : 's') + '</span>'
+        const visionRemaining = isPdfDocument(d) ? weakPdfPages(d).length : 0;
+        const visionTotalWeak = visionCount + visionRemaining;
+        const visionComplete = isPdfDocument(d) && visionRemaining === 0;
+
+        const visionStatus = isPdfDocument(d)
+          ? (
+              visionTotalWeak > 0
+                ? ' <span class="badge ' + (visionComplete ? 'ok' : '') + '">Vision: ' +
+                    visionCount + ' / ' + visionTotalWeak +
+                    ' weak pages' +
+                    (visionRemaining ? ' · ' + visionRemaining + ' remaining' : ' · complete') +
+                  '</span>'
+                : ' <span class="badge ok">Vision: no weak pages</span>'
+            )
           : '';
-        const visionButtonLabel = visionCount
-          ? 'Vision Index PDF · ' + visionCount + ' done'
-          : 'Vision Index PDF';
+
+        const visionButtonLabel = visionComplete
+          ? 'Vision Complete'
+          : (
+              visionCount
+                ? 'Vision Index PDF · ' + visionCount + ' / ' + visionTotalWeak
+                : 'Vision Index PDF'
+            );
 
         return `<tr>
         <td><b>${esc(d.file_name)}</b></td>
@@ -2555,7 +2581,9 @@
             ? `<button onclick="indexExistingPdf('${d.id}')">Index PDF</button>`
             : ''}
           ${isPdfDocument(d) && d.processing_status === 'ready'
-            ? `<button onclick="visionIndexPdf('${d.id}')">${visionButtonLabel}</button>`
+            ? (visionComplete
+                ? `<button disabled>${visionButtonLabel}</button>`
+                : `<button onclick="visionIndexPdf('${d.id}')">${visionButtonLabel}</button>`)
             : ''}
           ${isIndexableImageFile(d) && d.processing_status !== 'ready'
             ? `<button onclick="indexExistingImage('${d.id}')">Index Image</button>`
