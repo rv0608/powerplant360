@@ -378,3 +378,42 @@ details p{margin:9px 0 2px;line-height:1.55}
     );
   transition:background .25s linear;
 }
+
+
+/* Vision-indexed supporting PDF page preview */
+.pdf-image-modalbox{
+  width:min(1050px,96vw);
+  height:min(92vh,980px);
+  display:flex;
+  flex-direction:column;
+  background:var(--card);
+  color:var(--ink);
+  border-radius:16px;
+  padding:14px;
+  box-shadow:0 20px 60px rgba(0,0,0,.28);
+}
+.pdf-image-preview-body{
+  flex:1;
+  overflow:auto;
+  border:1px solid var(--line);
+  border-radius:10px;
+  background:#eef2f5;
+  display:flex;
+  align-items:flex-start;
+  justify-content:center;
+  padding:10px;
+}
+.pdf-page-preview-image{
+  display:block;
+  max-width:100%;
+  height:auto;
+  background:#fff;
+  box-shadow:0 2px 12px rgba(0,0,0,.12);
+}
+.pdf-preview-actions{
+  margin-top:10px;
+  justify-content:flex-end;
+}
+@media(max-width:760px){
+  .pdf-image-modalbox{width:96vw;height:92vh;padding:10px}
+}
