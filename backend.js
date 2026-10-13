@@ -2448,6 +2448,32 @@
     const indexPct = Math.min(100, (indexBytes / databaseLimit) * 100);
     const remaining = Math.max(0, storageLimit - storageUsed);
 
+    const visionPdfs = docs.filter(d => {
+      const name = String(d?.file_name || '').toLowerCase();
+      const mime = String(d?.mime_type || '').toLowerCase();
+      return mime.includes('pdf') || name.endsWith('.pdf');
+    });
+
+    const visionProcessed = visionPdfs.filter(d => {
+      const pages = Array.isArray(d?.metadata?.vision_indexed_pages)
+        ? d.metadata.vision_indexed_pages
+        : [];
+      return pages.some(x => Number.isInteger(Number(x)) && Number(x) > 0);
+    }).length;
+
+    const visionPagesTotal = visionPdfs.reduce((sum,d) => {
+      const pages = Array.isArray(d?.metadata?.vision_indexed_pages)
+        ? d.metadata.vision_indexed_pages
+            .map(Number)
+            .filter(x => Number.isInteger(x) && x > 0)
+        : [];
+      return sum + new Set(pages).size;
+    },0);
+
+    const visionPct = visionPdfs.length
+      ? Math.min(100,(visionProcessed / visionPdfs.length) * 100)
+      : 0;
+
     const level = p => p >= 90 ? 'danger' : p >= 75 ? 'warn' : 'good';
     const note = storagePct >= 90
       ? 'Storage is nearly full. Upgrade or remove old documents before large uploads.'
@@ -2470,6 +2496,12 @@
           <small>Estimated extracted-text size, not total DB size</small>
         </div>
         <div class="usage-card"><span>Storage Remaining</span><strong>${formatBytes(remaining)}</strong><small>${esc(note)}</small></div>
+        <div class="usage-card">
+          <span>Vision Index Status</span>
+          <strong>${visionProcessed} / ${visionPdfs.length} PDFs processed</strong>
+          <div class="usage-track"><div class="usage-fill good" style="width:${visionPct.toFixed(1)}%"></div></div>
+          <small>${visionPagesTotal} page${visionPagesTotal === 1 ? '' : 's'} vision-indexed • ${visionPct.toFixed(0)}% of PDF documents started</small>
+        </div>
       </div>
     `;
   }
