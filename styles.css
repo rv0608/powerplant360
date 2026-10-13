@@ -417,3 +417,35 @@ details p{margin:9px 0 2px;line-height:1.55}
 @media(max-width:760px){
   .pdf-image-modalbox{width:96vw;height:92vh;padding:10px}
 }
+
+
+/* Admin clipboard screenshot upload */
+.paste-upload-category{
+  width:min(420px,92%);
+  margin:8px auto 10px;
+  text-align:left;
+}
+.paste-upload-category label{
+  display:block;
+  font-weight:700;
+  margin-bottom:5px;
+}
+.paste-upload-category select{
+  width:100%;
+}
+.paste-upload-hint{
+  margin:10px auto 4px;
+  padding:9px 12px;
+  border:1px dashed #8cb5df;
+  border-radius:10px;
+  background:#f5faff;
+  width:min(420px,92%);
+  text-align:center;
+}
+.dropzone:focus{
+  outline:3px solid rgba(47,125,197,.25);
+  outline-offset:2px;
+}
+.dropzone.paste-received{
+  box-shadow:0 0 0 4px rgba(34,197,94,.22) inset;
+}
