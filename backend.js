@@ -1942,6 +1942,36 @@
         </div>
       </details>
 
+      <details class="backup-card">
+        <summary>Backup & Recovery</summary>
+        <div class="backup-body">
+          <p class="muted">Create local backups of the Supabase database content and private plant files. Store downloaded backups securely.</p>
+
+          <div class="backup-grid">
+            <div class="backup-option">
+              <h4>Database Backup</h4>
+              <p class="muted small">Exports document metadata + indexed text, user/role inventory, and API usage. Passwords are never included.</p>
+              <button class="primary" id="backupJsonBtn" onclick="exportProductionBackup()">Export Database Backup</button>
+            </div>
+
+            <div class="backup-option">
+              <h4>Private Files Backup</h4>
+              <p class="muted small">Download one department at a time as a ZIP with a recovery manifest.</p>
+              <select id="backupCategory">
+                <option value="">Select department</option>
+                ${categories.map(c => `<option>${c}</option>`).join('')}
+              </select>
+              <button id="backupZipBtn" onclick="backupDepartmentZip()">Download Department ZIP</button>
+            </div>
+          </div>
+
+          <div id="backupStatus" class="muted small backup-status"></div>
+          <div class="backup-actions">
+            <button onclick="window.open('BACKUP_RECOVERY.md','_blank')">View Recovery Guide</button>
+          </div>
+        </div>
+      </details>
+
       <div class="doc-toolbar">
         <div>
           <label>Category filter</label>
@@ -2125,6 +2155,192 @@
   function isIndexableOfficeFile(fileOrDoc) {
     return ['docx','xlsx','xls','csv','txt'].includes(officeExt(fileOrDoc));
   }
+
+  function pp360DownloadBlob(fileName, blob) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1500);
+  }
+
+  function pp360BackupStamp() {
+    const d = new Date();
+    return d.getFullYear().toString() +
+      String(d.getMonth()+1).padStart(2,'0') +
+      String(d.getDate()).padStart(2,'0') + '_' +
+      String(d.getHours()).padStart(2,'0') +
+      String(d.getMinutes()).padStart(2,'0');
+  }
+
+  window.exportProductionBackup = async function () {
+    if (backendRole !== 'admin') return;
+
+    const btn = document.getElementById('backupJsonBtn');
+    const status = document.getElementById('backupStatus');
+
+    try {
+      if (btn) { btn.disabled = true; btn.textContent = 'Preparing…'; }
+      if (status) status.textContent = 'Reading database content securely…';
+
+      const [docRes, usageRes, users] = await Promise.all([
+        client().from('documents').select('*'),
+        client().from('api_usage').select('*'),
+        callManageUsers({action:'list'})
+      ]);
+
+      if (docRes.error) throw docRes.error;
+      if (usageRes.error) throw usageRes.error;
+
+      const payload = {
+        format:'PowerPlant360 Backup',
+        schema_version:'pp360-backup-v1',
+        app_version:window.PP360_VERSION || '1.0.0',
+        generated_at:new Date().toISOString(),
+        project_ref:'elpokijrtmwkxpfauhnr',
+        notes:'Passwords and server-side secrets are intentionally excluded.',
+        documents:docRes.data || [],
+        users:Array.isArray(users?.users) ? users.users : [],
+        api_usage:usageRes.data || []
+      };
+
+      const blob = new Blob(
+        [JSON.stringify(payload,null,2)],
+        {type:'application/json;charset=utf-8'}
+      );
+
+      pp360DownloadBlob('PowerPlant360_Database_Backup_' + pp360BackupStamp() + '.json', blob);
+
+      if (status) {
+        status.textContent =
+          '✓ Database backup created: ' +
+          payload.documents.length + ' documents, ' +
+          payload.users.length + ' users.';
+      }
+    } catch (err) {
+      if (status) status.textContent = 'Backup failed: ' + (err?.message || String(err));
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = 'Export Database Backup'; }
+    }
+  };
+
+  window.backupDepartmentZip = async function () {
+    if (backendRole !== 'admin') return;
+
+    const select = document.getElementById('backupCategory');
+    const btn = document.getElementById('backupZipBtn');
+    const status = document.getElementById('backupStatus');
+    const category = select?.value || '';
+
+    if (!category) {
+      if (status) status.textContent = 'Select a department first.';
+      select?.focus();
+      return;
+    }
+    if (!window.JSZip) {
+      if (status) status.textContent = 'ZIP library is unavailable. Refresh and try again.';
+      return;
+    }
+
+    try {
+      if (btn) { btn.disabled = true; btn.textContent = 'Preparing ZIP…'; }
+      if (status) status.textContent = 'Reading ' + category + ' document list…';
+
+      const {data:rows,error} = await client()
+        .from('documents')
+        .select('id,file_name,storage_path,category,document_type,file_size,mime_type,page_count,metadata,processing_status,created_at,updated_at')
+        .eq('category',category)
+        .order('created_at',{ascending:true});
+
+      if (error) throw error;
+      const list = rows || [];
+      if (!list.length) throw new Error('No stored documents found for ' + category + '.');
+
+      const totalBytes = list.reduce((sum,d)=>sum + Number(d.file_size || 0),0);
+      if (totalBytes > 100 * 1024 * 1024) {
+        const ok = confirm(
+          category + ' backup is about ' + formatBytes(totalBytes) +
+          '. It may take several minutes and use significant browser memory. Continue?'
+        );
+        if (!ok) return;
+      }
+
+      const zip = new JSZip();
+      const fileFolder = zip.folder('files');
+      const manifestFiles = [];
+
+      for (let i=0;i<list.length;i++) {
+        const d = list[i];
+        if (status) {
+          status.textContent =
+            'Downloading ' + (i+1) + ' / ' + list.length + ': ' + (d.file_name || 'document');
+        }
+
+        const entry = {
+          ...d,
+          backup_name:null,
+          backup_error:null
+        };
+
+        try {
+          const {data:blob,error:downloadError} = await client()
+            .storage
+            .from('plant-documents')
+            .download(d.storage_path);
+
+          if (downloadError) throw downloadError;
+
+          const backupName =
+            String(i+1).padStart(3,'0') + '_' +
+            safeRemoteFileName(d.file_name || ('document_' + d.id));
+
+          fileFolder.file(backupName, blob);
+          entry.backup_name = backupName;
+        } catch (fileErr) {
+          entry.backup_error = String(fileErr?.message || fileErr);
+        }
+
+        manifestFiles.push(entry);
+      }
+
+      zip.file('manifest.json', JSON.stringify({
+        format:'PowerPlant360 Department Backup',
+        schema_version:'pp360-department-backup-v1',
+        app_version:window.PP360_VERSION || '1.0.0',
+        generated_at:new Date().toISOString(),
+        category,
+        expected_files:list.length,
+        downloaded_files:manifestFiles.filter(x=>!x.backup_error).length,
+        failed_files:manifestFiles.filter(x=>x.backup_error).length,
+        files:manifestFiles
+      },null,2));
+
+      if (status) status.textContent = 'Creating ZIP…';
+
+      const blob = await zip.generateAsync(
+        {type:'blob',compression:'STORE'},
+        meta => {
+          if (status) status.textContent = 'Creating ZIP… ' + Math.round(meta.percent || 0) + '%';
+        }
+      );
+
+      const slug = category.replace(/[^A-Za-z0-9]+/g,'_').replace(/^_+|_+$/g,'');
+      pp360DownloadBlob('PowerPlant360_' + slug + '_Backup_' + pp360BackupStamp() + '.zip', blob);
+
+      const failed = manifestFiles.filter(x=>x.backup_error).length;
+      if (status) status.textContent =
+        failed
+          ? 'ZIP created with ' + failed + ' file error(s). Check manifest.json before relying on this backup.'
+          : '✓ Department backup created successfully: ' + list.length + ' files.';
+    } catch (err) {
+      if (status) status.textContent = 'Backup failed: ' + (err?.message || String(err));
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = 'Download Department ZIP'; }
+    }
+  };
 
   async function callManageUsers(payload) {
     if (backendRole !== 'admin') throw new Error('Admin permission required.');
