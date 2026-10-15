@@ -56,7 +56,22 @@
     if (typeof renderTabs === 'function') {
       const activeBtn = document.querySelector('#tabs button.active');
       const activeTab = activeBtn?.textContent?.trim() || 'Home';
-      renderTabs(activeTab);
+
+      if ((backendRole === 'engineer' || backendRole === 'viewer') && activeTab === 'Admin') {
+        if (typeof show === 'function') show('Home');
+        else renderTabs('Home');
+      } else {
+        renderTabs(activeTab);
+      }
+    }
+
+    // Defense-in-depth: never leave an Admin navigation button visible
+    // for signed-in Engineer or Viewer accounts, even if an older app.js
+    // is still cached by the browser.
+    if (backendRole === 'engineer' || backendRole === 'viewer') {
+      document.querySelectorAll('#tabs button').forEach(tabBtn => {
+        if (String(tabBtn.textContent || '').trim() === 'Admin') tabBtn.remove();
+      });
     }
   }
 
