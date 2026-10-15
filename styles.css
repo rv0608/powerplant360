@@ -471,3 +471,59 @@ details p{margin:9px 0 2px;line-height:1.55}
 .dropzone.paste-received{
   box-shadow:0 0 0 4px rgba(34,197,94,.22) inset;
 }
+
+
+/* Admin User Management */
+.user-management-card{
+  margin:18px 0 20px;
+  border:1px solid var(--line);
+  border-radius:14px;
+  background:var(--card);
+  overflow:hidden;
+}
+.user-management-card>summary{
+  cursor:pointer;
+  padding:14px 16px;
+  font-weight:800;
+  font-size:1.05rem;
+  background:var(--soft);
+}
+.user-management-body{padding:14px 16px 16px}
+.user-create-grid{
+  display:grid;
+  grid-template-columns:minmax(180px,1.5fr) minmax(180px,1.2fr) minmax(130px,.7fr) auto;
+  gap:10px;
+  align-items:end;
+}
+.user-create-grid input,.user-create-grid select{
+  width:100%;
+  box-sizing:border-box;
+}
+.user-create-action{display:flex;align-items:end}
+.user-create-action button{white-space:nowrap}
+#userManageMsg{min-height:20px;margin-top:9px}
+.user-test-note{
+  margin:8px 0 12px;
+  padding:9px 11px;
+  border-radius:10px;
+  background:var(--soft);
+  color:var(--muted);
+  font-size:.88rem;
+}
+.user-table-scroll{overflow-x:auto}
+.user-table{width:100%;border-collapse:collapse}
+.user-table th,.user-table td{
+  padding:9px 8px;
+  border-bottom:1px solid var(--line);
+  text-align:left;
+  vertical-align:middle;
+}
+.user-table th{font-size:.82rem;color:var(--muted)}
+.managed-role-select{min-width:110px}
+.managed-user-actions{display:flex;gap:6px;flex-wrap:wrap}
+@media(max-width:850px){
+  .user-create-grid{grid-template-columns:1fr 1fr}
+}
+@media(max-width:560px){
+  .user-create-grid{grid-template-columns:1fr}
+}
