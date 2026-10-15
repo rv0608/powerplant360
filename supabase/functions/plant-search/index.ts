@@ -343,6 +343,14 @@ Deno.serve(async (req) => {
       callerRole = String(roleRow?.role || "");
     }
     const allowOnlineWeb = callerRole === "admin";
+    const allowedPlantRoles = new Set(["admin","engineer","viewer"]);
+
+    if (!allowedPlantRoles.has(callerRole)) {
+      return new Response(JSON.stringify({ error:"PowerPlant360 role required." }), {
+        status:403,
+        headers:{ ...corsHeaders, "Content-Type":"application/json" }
+      });
+    }
 
     const recordUsage = async (usage:any, sourceType:string, scopeValue:string) => {
       if (!supabaseAdmin || !usage) return;
