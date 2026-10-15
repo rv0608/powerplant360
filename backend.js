@@ -6,6 +6,7 @@
   }
   let backendSession = null;
   let backendRole = null;
+  let passwordRecoveryMode = /(?:[?#&])type=recovery(?:&|$)/i.test(window.location.href);
 
   function backendConfigured() {
     return cfg.supabaseUrl &&
@@ -19,6 +20,145 @@
       window.pp360Supabase = supabase.createClient(cfg.supabaseUrl, cfg.supabaseKey);
     }
     return window.pp360Supabase;
+  }
+
+  function setAuthLocked(locked) {
+    document.body.classList.toggle('auth-locked', Boolean(locked));
+    document.body.classList.toggle('auth-ready', !locked);
+  }
+
+  function showLoginGate(message='') {
+    passwordRecoveryMode = false;
+    setAuthLocked(true);
+    const body = document.getElementById('authGateBody');
+    if (!body) return;
+
+    body.innerHTML =
+      '<h1>Sign in</h1>' +
+      '<p class="auth-help">Admin, Engineer and Viewer accounts use the same secure login.</p>' +
+      '<label for="loginEmail">Email</label>' +
+      '<input id="loginEmail" type="email" autocomplete="username" placeholder="Email address">' +
+      '<label for="loginPassword">Password</label>' +
+      '<input id="loginPassword" type="password" autocomplete="current-password" placeholder="Password">' +
+      '<button class="auth-primary" onclick="login()">Login</button>' +
+      '<button class="auth-link" onclick="showForgotPassword()">Forgot password?</button>' +
+      '<div id="loginMsg" class="auth-message">' + esc(message || '') + '</div>';
+
+    setTimeout(() => document.getElementById('loginEmail')?.focus(), 0);
+  }
+  window.showLoginGate = showLoginGate;
+
+  function showForgotPassword() {
+    setAuthLocked(true);
+    const body = document.getElementById('authGateBody');
+    if (!body) return;
+
+    body.innerHTML =
+      '<h1>Forgot password</h1>' +
+      '<p class="auth-help">Enter your PowerPlant360 account email. We will send a secure password-reset link.</p>' +
+      '<label for="resetEmail">Email</label>' +
+      '<input id="resetEmail" type="email" autocomplete="email" placeholder="Email address">' +
+      '<button class="auth-primary" id="resetRequestBtn" onclick="sendPasswordReset()">Send reset link</button>' +
+      '<button class="auth-link" onclick="showLoginGate()">Back to Login</button>' +
+      '<div id="resetMsg" class="auth-message"></div>';
+
+    setTimeout(() => document.getElementById('resetEmail')?.focus(), 0);
+  }
+  window.showForgotPassword = showForgotPassword;
+
+  window.sendPasswordReset = async function () {
+    const emailEl = document.getElementById('resetEmail');
+    const btn = document.getElementById('resetRequestBtn');
+    const msg = document.getElementById('resetMsg');
+    const email = emailEl?.value.trim() || '';
+
+    if (!email || !email.includes('@')) {
+      if (msg) msg.textContent = 'Enter a valid email address.';
+      emailEl?.focus();
+      return;
+    }
+
+    try {
+      if (btn) { btn.disabled = true; btn.textContent = 'Sending…'; }
+      if (msg) msg.textContent = '';
+
+      const cleanUrl = window.location.origin + window.location.pathname;
+      const { error } = await client().auth.resetPasswordForEmail(email, {
+        redirectTo: cleanUrl
+      });
+      if (error) throw error;
+
+      if (msg) msg.textContent = '✓ Reset link sent. Check your email, open the link, and set a new password.';
+    } catch (err) {
+      if (msg) msg.textContent = 'Could not send reset link: ' + (err?.message || String(err));
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = 'Send reset link'; }
+    }
+  };
+
+  function showPasswordRecoveryGate(message='') {
+    passwordRecoveryMode = true;
+    setAuthLocked(true);
+    const body = document.getElementById('authGateBody');
+    if (!body) return;
+
+    body.innerHTML =
+      '<h1>Set new password</h1>' +
+      '<p class="auth-help">Create a new password for your PowerPlant360 account.</p>' +
+      '<label for="newRecoveryPassword">New password</label>' +
+      '<input id="newRecoveryPassword" type="password" autocomplete="new-password" placeholder="Minimum 8 characters">' +
+      '<label for="confirmRecoveryPassword">Confirm new password</label>' +
+      '<input id="confirmRecoveryPassword" type="password" autocomplete="new-password" placeholder="Re-enter new password">' +
+      '<button class="auth-primary" id="saveRecoveryPasswordBtn" onclick="saveRecoveryPassword()">Save new password</button>' +
+      '<div id="recoveryMsg" class="auth-message">' + esc(message || '') + '</div>';
+
+    setTimeout(() => document.getElementById('newRecoveryPassword')?.focus(), 0);
+  }
+  window.showPasswordRecoveryGate = showPasswordRecoveryGate;
+
+  window.saveRecoveryPassword = async function () {
+    const p1 = document.getElementById('newRecoveryPassword')?.value || '';
+    const p2 = document.getElementById('confirmRecoveryPassword')?.value || '';
+    const btn = document.getElementById('saveRecoveryPasswordBtn');
+    const msg = document.getElementById('recoveryMsg');
+
+    if (p1.length < 8) {
+      if (msg) msg.textContent = 'Password must be at least 8 characters.';
+      return;
+    }
+    if (p1 !== p2) {
+      if (msg) msg.textContent = 'Passwords do not match.';
+      return;
+    }
+
+    try {
+      if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+      const { error } = await client().auth.updateUser({password:p1});
+      if (error) throw error;
+
+      await client().auth.signOut();
+      backendSession = null;
+      backendRole = null;
+      admin = false;
+      docs = [];
+      window.history.replaceState({}, document.title, window.location.origin + window.location.pathname);
+      applySearchRoleUi();
+      showLoginGate('✓ Password updated. Please sign in with your new password.');
+    } catch (err) {
+      if (msg) msg.textContent = 'Password update failed: ' + (err?.message || String(err));
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = 'Save new password'; }
+    }
+  };
+
+  function openAuthenticatedApp() {
+    if (!backendSession || !backendRole) {
+      showLoginGate();
+      return;
+    }
+    setAuthLocked(false);
+    if (typeof show === 'function') show('Home');
+    applySearchRoleUi();
   }
 
   function applySearchRoleUi() {
@@ -45,8 +185,7 @@
           '</div>' +
           '<button class="header-logout" onclick="logout()">Logout</button>';
       } else {
-        headerUser.innerHTML =
-          '<button class="header-login" onclick="show(\'Admin\')">Login</button>';
+        headerUser.innerHTML = '';
       }
     }
 
@@ -70,7 +209,7 @@
       } else if (backendRole === 'engineer' || backendRole === 'viewer') {
         scopeEl.textContent = 'Authorized Plant Data mode: private plant documents enabled.';
       } else {
-        scopeEl.textContent = 'Public mode: plant files require authorization.';
+        scopeEl.textContent = 'Login required for PowerPlant360 access.';
       }
     }
 
@@ -113,16 +252,76 @@
   }
 
   async function restoreBackendSession() {
-    if (!backendConfigured()) return;
-    const { data } = await client().auth.getSession();
-    backendSession = data.session;
-    await refreshBackendRole();
-    applySearchRoleUi();
-    client().auth.onAuthStateChange(async (_event, newSession) => {
+    if (!backendConfigured()) {
+      showLoginGate('Backend configuration is unavailable.');
+      return;
+    }
+
+    client().auth.onAuthStateChange(async (event, newSession) => {
       backendSession = newSession;
+
+      if (event === 'PASSWORD_RECOVERY') {
+        passwordRecoveryMode = true;
+        showPasswordRecoveryGate();
+        return;
+      }
+
+      if (passwordRecoveryMode) {
+        showPasswordRecoveryGate();
+        return;
+      }
+
+      if (!newSession) {
+        backendRole = null;
+        admin = false;
+        applySearchRoleUi();
+        showLoginGate();
+        return;
+      }
+
       await refreshBackendRole();
       applySearchRoleUi();
+
+      if (backendRole === 'admin' || backendRole === 'engineer' || backendRole === 'viewer') {
+        openAuthenticatedApp();
+      } else {
+        await client().auth.signOut();
+        backendSession = null;
+        backendRole = null;
+        admin = false;
+        applySearchRoleUi();
+        showLoginGate('This account does not have a PowerPlant360 role.');
+      }
     });
+
+    const { data } = await client().auth.getSession();
+    backendSession = data.session;
+
+    if (passwordRecoveryMode) {
+      showPasswordRecoveryGate();
+      return;
+    }
+
+    if (!backendSession) {
+      backendRole = null;
+      admin = false;
+      applySearchRoleUi();
+      showLoginGate();
+      return;
+    }
+
+    await refreshBackendRole();
+
+    if (backendRole === 'admin' || backendRole === 'engineer' || backendRole === 'viewer') {
+      openAuthenticatedApp();
+    } else {
+      await client().auth.signOut();
+      backendSession = null;
+      backendRole = null;
+      admin = false;
+      applySearchRoleUi();
+      showLoginGate('This account does not have a PowerPlant360 role.');
+    }
   }
 
 
@@ -1769,9 +1968,17 @@
   };
 
   login = async function () {
-    const email = document.getElementById('loginEmail')?.value.trim();
-    const password = document.getElementById('loginPassword')?.value || '';
+    const emailEl = document.getElementById('loginEmail');
+    const passwordEl = document.getElementById('loginPassword');
+    const email = emailEl?.value.trim() || '';
+    const password = passwordEl?.value || '';
     const msg = document.getElementById('loginMsg');
+
+    if (!email || !password) {
+      if (msg) msg.textContent = 'Enter your email and password.';
+      return;
+    }
+
     if (msg) msg.textContent = 'Signing in…';
 
     const { data, error } = await client().auth.signInWithPassword({ email, password });
@@ -1783,22 +1990,28 @@
     backendSession = data.session;
     await refreshBackendRole();
 
-    if (backendRole === 'engineer' || backendRole === 'viewer') {
-      show('Home');
+    if (!['admin','engineer','viewer'].includes(String(backendRole || ''))) {
+      await client().auth.signOut();
+      backendSession = null;
+      backendRole = null;
+      admin = false;
+      applySearchRoleUi();
+      showLoginGate('This account does not have a PowerPlant360 role.');
       return;
     }
 
-    await adminPage();
+    if (passwordEl) passwordEl.value = '';
+    openAuthenticatedApp();
   };
 
   logout = async function () {
-    if (client()) await client().auth.signOut();
     backendSession = null;
     backendRole = null;
     admin = false;
     docs = [];
     applySearchRoleUi();
-    show('Home');
+    showLoginGate('You have been logged out.');
+    if (client()) await client().auth.signOut();
   };
 
   function safeRemoteFileName(name) {
