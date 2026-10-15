@@ -527,3 +527,67 @@ details p{margin:9px 0 2px;line-height:1.55}
 @media(max-width:560px){
   .user-create-grid{grid-template-columns:1fr}
 }
+
+
+/* Persistent signed-in user / login controls */
+.brand-block{min-width:0}
+.header-actions{
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  gap:8px;
+  min-width:0;
+}
+.header-user{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  min-width:0;
+}
+.header-user-identity{
+  min-width:0;
+  max-width:330px;
+  text-align:right;
+  line-height:1.2;
+}
+.header-user-identity strong{
+  display:block;
+  color:#fff;
+  font-size:.92rem;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.header-user-identity small{
+  display:block;
+  margin-top:3px;
+  color:rgba(255,255,255,.78);
+  font-size:.72rem;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.header-login,.header-logout{
+  white-space:nowrap;
+  font-weight:700;
+}
+.header-login{
+  background:#fff;
+  color:var(--brand);
+}
+.header-logout{
+  background:rgba(255,255,255,.94);
+  color:#8b1e1e;
+}
+@media(max-width:720px){
+  header{gap:10px}
+  .header-actions{gap:6px}
+  .header-user{gap:6px}
+  .header-user-identity{max-width:170px}
+  .header-user-identity small{display:none}
+  .header-login,.header-logout{padding:8px 10px}
+}
+@media(max-width:480px){
+  .header-user-identity{max-width:105px}
+  .header-actions button{padding:8px 9px}
+}
