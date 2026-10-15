@@ -1,1 +1,23 @@
-{"name":"PowerPlant360 Lite","short_name":"PP360 Lite","start_url":"./","scope":"./","display":"standalone","background_color":"#f4f7fb","theme_color":"#0b3155","description":"Power plant engineering knowledge assistant"}
+{
+  "name": "PowerPlant360",
+  "short_name": "PP360",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f4f7fb",
+  "theme_color": "#0b3155",
+  "description": "Secure engineering knowledge assistant for authorized power plant users",
+  "categories": [
+    "productivity",
+    "utilities"
+  ],
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
