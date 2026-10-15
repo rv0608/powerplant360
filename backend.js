@@ -28,6 +28,27 @@
     const btn = document.getElementById('plantSearchBtn');
     const onlineBtn = document.getElementById('onlineSearchBtn');
     const scopeEl = document.getElementById('scope');
+    const headerUser = document.getElementById('headerUser');
+
+    if (headerUser) {
+      if (backendSession?.user) {
+        const email = String(backendSession.user.email || 'Signed-in user');
+        const accountName = email.includes('@') ? email.split('@')[0] : email;
+        const roleLabel = backendRole
+          ? backendRole.charAt(0).toUpperCase() + backendRole.slice(1)
+          : 'Authorized User';
+
+        headerUser.innerHTML =
+          '<div class="header-user-identity" title="' + esc(email) + '">' +
+            '<strong>' + esc(accountName) + '</strong>' +
+            '<small>' + esc(roleLabel) + ' · ' + esc(email) + '</small>' +
+          '</div>' +
+          '<button class="header-logout" onclick="logout()">Logout</button>';
+      } else {
+        headerUser.innerHTML =
+          '<button class="header-login" onclick="show(\'Admin\')">Login</button>';
+      }
+    }
 
     if (btn) {
       btn.textContent = backendRole === 'admin' || backendRole === 'engineer' || backendRole === 'viewer'
