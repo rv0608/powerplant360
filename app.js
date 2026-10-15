@@ -231,10 +231,15 @@ const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&
 const norm=s=>s.toLowerCase().replace(/[^\w\s&/-]/g,' ').replace(/\s+/g,' ').trim();
 
 function renderTabs(active='Home'){
- document.getElementById('tabs').innerHTML=tabs.map(x=>`<button class='${x===active?'active':''}' onclick="show('${x}')">${x}</button>`).join('');
+ const signedIn=window.pp360SignedIn===true;
+ const canSeeAdmin=admin || !signedIn;
+ const visibleTabs=tabs.filter(x=>x!=='Admin'||canSeeAdmin);
+ if(!visibleTabs.includes(active)) active='Home';
+ document.getElementById('tabs').innerHTML=visibleTabs.map(x=>`<button class='${x===active?'active':''}' onclick="show('${x}')">${x}</button>`).join('');
 }
 
 function show(x){
+ if(x==='Admin' && window.pp360SignedIn===true && !admin) x='Home';
  renderTabs(x);
  const v=document.getElementById('view');
  if(x==='Home')v.innerHTML=`<div class='grid'>${equipment.map(e=>`<div class='card'><h3>${e}</h3><p class='muted'>Technical data • Manuals • Interlocks • Troubleshooting</p><div class='actions'><button class='primary' onclick="equipmentPage('${e}')">Open</button>${e==='CFBC Boiler'?`<button onclick="searchTerm('lhs panel')">Pressure Parts</button>`:''}</div></div>`).join('')}</div>`;
