@@ -17,7 +17,14 @@
   function client() {
     if (!backendConfigured()) return null;
     if (!window.pp360Supabase) {
-      window.pp360Supabase = supabase.createClient(cfg.supabaseUrl, cfg.supabaseKey);
+      window.pp360Supabase = supabase.createClient(cfg.supabaseUrl, cfg.supabaseKey, {
+        auth: {
+          storage: window.sessionStorage,
+          persistSession: true,
+          autoRefreshToken: true,
+          detectSessionInUrl: true
+        }
+      });
     }
     return window.pp360Supabase;
   }
