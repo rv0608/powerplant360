@@ -22,6 +22,9 @@
   }
 
   function applySearchRoleUi() {
+    window.pp360BackendRole = backendRole;
+    window.pp360SignedIn = Boolean(backendSession);
+
     const btn = document.getElementById('plantSearchBtn');
     const onlineBtn = document.getElementById('onlineSearchBtn');
     const scopeEl = document.getElementById('scope');
@@ -48,6 +51,12 @@
       } else {
         scopeEl.textContent = 'Public mode: plant files require authorization.';
       }
+    }
+
+    if (typeof renderTabs === 'function') {
+      const activeBtn = document.querySelector('#tabs button.active');
+      const activeTab = activeBtn?.textContent?.trim() || 'Home';
+      renderTabs(activeTab);
     }
   }
 
@@ -1737,6 +1746,12 @@
 
     backendSession = data.session;
     await refreshBackendRole();
+
+    if (backendRole === 'engineer' || backendRole === 'viewer') {
+      show('Home');
+      return;
+    }
+
     await adminPage();
   };
 
