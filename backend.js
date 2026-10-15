@@ -1660,6 +1660,37 @@
       <div id="storageUsage" class="storage-usage"><div class="muted small">Storage monitor loading…</div></div>
       <div id="apiUsage" class="storage-usage"><div class="muted small">AI Usage & Cost loading…</div></div>
 
+      <details class="user-management-card" open>
+        <summary>User Management</summary>
+        <div class="user-management-body">
+          <div class="user-create-grid">
+            <div>
+              <label for="newUserEmail">Email</label>
+              <input id="newUserEmail" type="email" autocomplete="off" placeholder="engineer@example.com">
+            </div>
+            <div>
+              <label for="newUserPassword">Temporary password</label>
+              <input id="newUserPassword" type="password" autocomplete="new-password" placeholder="Minimum 8 characters">
+            </div>
+            <div>
+              <label for="newUserRole">Role</label>
+              <select id="newUserRole">
+                <option value="engineer">Engineer</option>
+                <option value="viewer">Viewer</option>
+              </select>
+            </div>
+            <div class="user-create-action">
+              <button class="primary" id="createUserBtn" onclick="createManagedUser()">Add User</button>
+            </div>
+          </div>
+          <div id="userManageMsg" class="muted small"></div>
+          <div class="user-test-note">
+            To test a new account without replacing your Admin session, open PowerPlant360 in an <b>Incognito / Private</b> window and sign in with that account.
+          </div>
+          <div id="userListWrap" class="user-list-wrap"><div class="muted small">Loading users…</div></div>
+        </div>
+      </details>
+
       <div class="doc-toolbar">
         <div>
           <label>Category filter</label>
@@ -1689,6 +1720,7 @@
     setupAdminClipboardPaste();
     await loadDocsFromBackend();
     await loadApiUsage();
+    await loadUserManagement();
   };
 
   login = async function () {
@@ -1822,6 +1854,184 @@
   function isIndexableOfficeFile(fileOrDoc) {
     return ['docx','xlsx','xls','csv','txt'].includes(officeExt(fileOrDoc));
   }
+
+  async function callManageUsers(payload) {
+    if (backendRole !== 'admin') throw new Error('Admin permission required.');
+
+    const { data: sessionData } = await client().auth.getSession();
+    const token = sessionData?.session?.access_token;
+    if (!token) throw new Error('Session expired. Please log in again.');
+
+    const endpoint = cfg.supabaseUrl.replace(/\/$/,'') + '/functions/v1/manage-users';
+    const res = await fetch(endpoint, {
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json',
+        'Authorization':'Bearer ' + token,
+        'apikey':cfg.supabaseKey
+      },
+      body:JSON.stringify(payload || {})
+    });
+
+    let data = null;
+    try { data = await res.json(); } catch (_) {}
+
+    if (!res.ok) {
+      throw new Error(String(data?.error || data?.message || ('User management failed with status ' + res.status)));
+    }
+    return data || {};
+  }
+
+  function managedUserDate(value) {
+    if (!value) return '—';
+    const d = new Date(value);
+    return Number.isNaN(d.getTime()) ? '—' : d.toLocaleString();
+  }
+
+  async function loadUserManagement() {
+    const wrap = document.getElementById('userListWrap');
+    if (!wrap || backendRole !== 'admin') return;
+
+    wrap.innerHTML = '<div class="muted small">Loading users…</div>';
+
+    try {
+      const payload = await callManageUsers({action:'list'});
+      const users = Array.isArray(payload?.users) ? payload.users : [];
+
+      if (!users.length) {
+        wrap.innerHTML = '<div class="notice">No users found.</div>';
+        return;
+      }
+
+      wrap.innerHTML =
+        '<div class="user-table-scroll"><table class="user-table">' +
+          '<tr><th>Email</th><th>Role</th><th>Created</th><th>Last Sign-in</th><th>Actions</th></tr>' +
+          users.map(u => {
+            const role = String(u?.role || 'viewer').toLowerCase();
+            const isAdmin = role === 'admin';
+            const isCurrent = Boolean(u?.is_current);
+
+            const roleCell = isAdmin
+              ? '<span class="badge ok">Admin</span>'
+              : '<select class="managed-role-select" onchange="changeManagedUserRole(\'' + esc(u.id) + '\',this.value)">' +
+                  '<option value="engineer"' + (role === 'engineer' ? ' selected' : '') + '>Engineer</option>' +
+                  '<option value="viewer"' + (role === 'viewer' ? ' selected' : '') + '>Viewer</option>' +
+                '</select>';
+
+            const actions = isAdmin
+              ? '<span class="muted small">' + (isCurrent ? 'Current Admin · protected' : 'Admin · protected') + '</span>'
+              : '<div class="managed-user-actions">' +
+                  '<button onclick="copyManagedUserEmail(\'' + esc(String(u.email || '')) + '\')">Copy Email</button>' +
+                  '<button class="dangerbtn" onclick="deleteManagedUser(\'' + esc(u.id) + '\',\'' + esc(String(u.email || '')) + '\')">Delete</button>' +
+                '</div>';
+
+            return '<tr>' +
+              '<td><b>' + esc(String(u.email || '')) + '</b>' + (isCurrent ? '<div class="muted small">Signed in now</div>' : '') + '</td>' +
+              '<td>' + roleCell + '</td>' +
+              '<td>' + esc(managedUserDate(u?.created_at)) + '</td>' +
+              '<td>' + esc(managedUserDate(u?.last_sign_in_at)) + '</td>' +
+              '<td>' + actions + '</td>' +
+            '</tr>';
+          }).join('') +
+        '</table></div>';
+    } catch (err) {
+      wrap.innerHTML = '<div class="notice"><b>Could not load users.</b><br>' + esc(err?.message || String(err)) + '</div>';
+    }
+  }
+  window.loadUserManagement = loadUserManagement;
+
+  window.createManagedUser = async function () {
+    if (backendRole !== 'admin') return;
+
+    const emailEl = document.getElementById('newUserEmail');
+    const passwordEl = document.getElementById('newUserPassword');
+    const roleEl = document.getElementById('newUserRole');
+    const btn = document.getElementById('createUserBtn');
+    const msg = document.getElementById('userManageMsg');
+
+    const email = emailEl?.value.trim() || '';
+    const password = passwordEl?.value || '';
+    const role = roleEl?.value || 'viewer';
+
+    if (!email || !email.includes('@')) {
+      if (msg) msg.textContent = 'Enter a valid email address.';
+      emailEl?.focus();
+      return;
+    }
+    if (password.length < 8) {
+      if (msg) msg.textContent = 'Temporary password must be at least 8 characters.';
+      passwordEl?.focus();
+      return;
+    }
+
+    try {
+      if (btn) { btn.disabled = true; btn.textContent = 'Creating…'; }
+      if (msg) msg.textContent = 'Creating user securely…';
+
+      await callManageUsers({
+        action:'create',
+        email,
+        password,
+        role
+      });
+
+      if (passwordEl) passwordEl.value = '';
+      if (emailEl) emailEl.value = '';
+      if (msg) msg.textContent = '✓ User created. Open PowerPlant360 in an Incognito / Private window to test the login.';
+      await loadUserManagement();
+    } catch (err) {
+      if (msg) msg.textContent = 'User creation failed: ' + (err?.message || String(err));
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = 'Add User'; }
+    }
+  };
+
+  window.changeManagedUserRole = async function(userId, role) {
+    if (backendRole !== 'admin') return;
+    const msg = document.getElementById('userManageMsg');
+
+    try {
+      if (msg) msg.textContent = 'Updating role…';
+      await callManageUsers({
+        action:'update_role',
+        user_id:userId,
+        role
+      });
+      if (msg) msg.textContent = '✓ Role updated.';
+      await loadUserManagement();
+    } catch (err) {
+      if (msg) msg.textContent = 'Role update failed: ' + (err?.message || String(err));
+      await loadUserManagement();
+    }
+  };
+
+  window.deleteManagedUser = async function(userId, email) {
+    if (backendRole !== 'admin') return;
+    if (!confirm('Delete user ' + email + '?\n\nThis removes the login account and its PowerPlant360 role.')) return;
+
+    const msg = document.getElementById('userManageMsg');
+    try {
+      if (msg) msg.textContent = 'Deleting user…';
+      await callManageUsers({
+        action:'delete',
+        user_id:userId
+      });
+      if (msg) msg.textContent = '✓ User deleted.';
+      await loadUserManagement();
+    } catch (err) {
+      if (msg) msg.textContent = 'Delete failed: ' + (err?.message || String(err));
+    }
+  };
+
+  window.copyManagedUserEmail = async function(email) {
+    try {
+      await navigator.clipboard.writeText(String(email || ''));
+      const msg = document.getElementById('userManageMsg');
+      if (msg) msg.textContent = '✓ Email copied. Open PowerPlant360 in an Incognito / Private window for login testing.';
+    } catch (_) {
+      prompt('Copy this test-user email:', String(email || ''));
+    }
+  };
 
   async function invokeSecureIndexer(functionName, documentId) {
     if (backendRole !== 'admin') throw new Error('Admin permission required for indexing.');
