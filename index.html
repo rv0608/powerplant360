@@ -17,7 +17,7 @@ if('serviceWorker' in navigator){
 if('caches' in window){
   caches.keys().then(keys=>Promise.all(keys.filter(k=>k.startsWith('pp360')).map(k=>caches.delete(k)))).catch(()=>{});
 }
-</script><script src='https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2'></script><script src='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js'></script><script src='https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js'></script><script src='https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js'></script><script src='config.js?v=5'></script><script src='app.js?v=15'></script><script>
+</script><script src='https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2'></script><script src='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js'></script><script src='https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js'></script><script src='https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js'></script><script src='config.js?v=5'></script><script src='app.js?v=16'></script><script>
 (function(){
   const s=document.createElement('script');
   s.src='backend.js?ts='+Date.now();
