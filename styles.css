@@ -1632,8 +1632,6 @@ header .header-actions button:focus-visible {
   header .header-logout { padding-inline:11px; }
 }
 @media (max-width:600px) {
-  /* iOS Safari cannot launch the install prompt; preserve room for safe taps. */
-  header #installBtn { display:none!important; }
   header .header-actions { gap:9px; }
   header .header-actions button { min-width:44px; min-height:44px; }
   header .header-logout { padding-inline:10px; }
