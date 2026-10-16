@@ -310,13 +310,48 @@ const CONVERTERS={"Pressure":{"bar":100000,"kPa":1000,"MPa":1000000,"kg/cm²":98
       return;
     }
 
-    wrap.innerHTML='<div class="calc-group-title"><h3>'+esc(title)+'</h3><span>'+list.length+' calculators</span></div><div class="calc-card-grid">'+list.map(cardHtml).join('')+'</div>';
+    // Start with a compact calculator picker; render the form only after selection.
+    wrap.innerHTML='<div class="calc-group-title"><h3>'+esc(title)+'</h3><span>'+list.length+' calculators</span></div>'+
+      '<div class="calc-picker-grid" aria-label="Choose a calculator">'+
+        list.map(function(c){
+          return '<button type="button" class="calc-picker-btn" data-open-calc="'+esc(c.id)+'" aria-expanded="false">'+
+            '<span>'+esc(c.t)+'</span><span aria-hidden="true">›</span></button>';
+        }).join('')+
+      '</div><div id="calcDetail" class="calc-detail" hidden></div>';
 
-    wrap.querySelectorAll('[data-run-calc]').forEach(function(btn){
-      btn.addEventListener('click',function(){ runCalc(btn.getAttribute('data-run-calc')); });
-    });
-    wrap.querySelectorAll('[data-favorite-calc]').forEach(function(btn){
-      btn.addEventListener('click',function(){ toggleFavorite(btn.getAttribute('data-favorite-calc')); });
+    wrap.querySelectorAll('[data-open-calc]').forEach(function(btn){
+      btn.addEventListener('click',function(){
+        var id=btn.getAttribute('data-open-calc');
+        var detail=wrap.querySelector('#calcDetail');
+        var selected=list.find(function(c){return c.id===id;});
+        if(!detail||!selected) return;
+        if(!detail.hidden && detail.getAttribute('data-selected-calc')===id){
+          detail.hidden=true;
+          detail.innerHTML='';
+          detail.removeAttribute('data-selected-calc');
+          btn.setAttribute('aria-expanded','false');
+          btn.classList.remove('active');
+          return;
+        }
+        wrap.querySelectorAll('[data-open-calc]').forEach(function(b){
+          b.classList.toggle('active',b===btn);
+          b.setAttribute('aria-expanded',b===btn?'true':'false');
+        });
+        detail.innerHTML='<div class="calc-detail-toolbar"><button type="button" class="calc-close-btn">← All calculators</button></div>'+cardHtml(selected);
+        detail.setAttribute('data-selected-calc',id);
+        detail.hidden=false;
+        detail.querySelector('.calc-close-btn').addEventListener('click',function(){
+          detail.hidden=true;
+          detail.innerHTML='';
+          detail.removeAttribute('data-selected-calc');
+          btn.classList.remove('active');
+          btn.setAttribute('aria-expanded','false');
+          btn.focus();
+        });
+        detail.querySelector('[data-run-calc]').addEventListener('click',function(){runCalc(id);});
+        detail.querySelector('[data-favorite-calc]').addEventListener('click',function(){toggleFavorite(id);});
+        detail.scrollIntoView({behavior:'auto',block:'start'});
+      });
     });
     updateFavoriteCount();
   }
