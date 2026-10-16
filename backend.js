@@ -1870,31 +1870,30 @@
     document.getElementById('scope').textContent =
       'Authorized Admin mode: private plant documents enabled.';
 
-    v.innerHTML = `<div class="card admin">
-      <div class="adminhead">
+    v.innerHTML = `<div class="card admin admin-simple">
+      <div class="adminhead adminhead-simple">
         <div>
-          <h2>Admin Document Manager</h2>
-          <p class="muted">Signed in as ${esc(backendSession.user.email || 'Admin')}</p>
-        </div>
-        <div class="admin-actions">
-          <button onclick="hardRefreshPP360()" title="Hard Refresh" aria-label="Hard Refresh">↻</button>
-          <button onclick="logout()">Logout</button>
+          <h2>Admin</h2>
+          <p class="muted">${esc(backendSession.user.email || 'Admin')}</p>
         </div>
       </div>
 
+      <details class="admin-simple-section admin-upload-section" open>
+        <summary>Upload Documents</summary>
+        <div class="admin-section-body">
       <div id="dropZone" class="dropzone" tabindex="0">
         <div class="dropicon">⬆️</div>
-        <h3>Drag & drop files here</h3>
+        <h3>Upload plant files</h3>
 
         <div class="paste-upload-category">
-          <label for="uploadCategory">Upload to department</label>
+          <label for="uploadCategory">Department</label>
           <select id="uploadCategory">
             <option value="">Auto detect from filename</option>
             ${categories.map(c => `<option>${c}</option>`).join('')}
           </select>
         </div>
 
-        <div class="paste-upload-hint"><b>Paste screenshot:</b> click this box, then press <b>Ctrl+V</b></div>
+        <div class="paste-upload-hint"><b>Paste screenshot:</b> click here, then press <b>Ctrl+V</b></div>
 
         <p>or</p>
         <label class="uploadchoose">Choose Files
@@ -1905,13 +1904,18 @@
       </div>
 
       <div id="uploadQueue" class="uploadqueue"></div>
+        </div>
+      </details>
 
-      <div class="notice"><b>Real backend enabled:</b> files are stored privately in Supabase Storage and metadata is stored in the database. The progress bar shows actual network upload progress.</div>
+      <details class="admin-simple-section">
+        <summary>System Status</summary>
+        <div class="admin-section-body compact-status-area">
+          <div id="storageUsage" class="storage-usage"><div class="muted small">Storage monitor loading…</div></div>
+          <div id="apiUsage" class="storage-usage"><div class="muted small">AI Usage & Cost loading…</div></div>
+        </div>
+      </details>
 
-      <div id="storageUsage" class="storage-usage"><div class="muted small">Storage monitor loading…</div></div>
-      <div id="apiUsage" class="storage-usage"><div class="muted small">AI Usage & Cost loading…</div></div>
-
-      <details class="user-management-card" open>
+      <details class="user-management-card admin-simple-section">
         <summary>User Management</summary>
         <div class="user-management-body">
           <div class="user-create-grid">
@@ -1936,13 +1940,13 @@
           </div>
           <div id="userManageMsg" class="muted small"></div>
           <div class="user-test-note">
-            To test a new account without replacing your Admin session, open PowerPlant360 in an <b>Incognito / Private</b> window and sign in with that account.
+            For role testing, use an <b>Incognito / Private</b> window.
           </div>
           <div id="userListWrap" class="user-list-wrap"><div class="muted small">Loading users…</div></div>
         </div>
       </details>
 
-      <details class="backup-card">
+      <details class="backup-card admin-simple-section">
         <summary>Backup & Recovery</summary>
         <div class="backup-body">
           <p class="muted">Create local backups of the Supabase database content and private plant files. Store downloaded backups securely.</p>
@@ -1972,6 +1976,9 @@
         </div>
       </details>
 
+      <details class="admin-simple-section admin-documents-section" open>
+        <summary>Stored Documents</summary>
+        <div class="admin-section-body">
       <div class="doc-toolbar">
         <div>
           <label>Category filter</label>
@@ -1993,8 +2000,9 @@
         </div>
       </div>
 
-      <h3>Stored Plant Documents</h3>
       <div id="docTableWrap"><p class="muted">Loading documents…</p></div>
+        </div>
+      </details>
     </div>`;
 
     setupDropZone();
