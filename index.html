@@ -1,7 +1,48 @@
-<!doctype html><html><head><meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"><meta http-equiv="Pragma" content="no-cache"><meta http-equiv="Expires" content="0"><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1,viewport-fit=cover'><meta name='theme-color' content='#0b3155'><title>PowerPlant360</title><link rel='icon' href='icon.svg' type='image/svg+xml'><link rel='manifest' href='manifest.json'><meta name='apple-mobile-web-app-capable' content='yes'><meta name='apple-mobile-web-app-status-bar-style' content='default'><meta name='application-name' content='PowerPlant360'><link rel='stylesheet' href='styles.css?v=52'></head><body class='auth-locked'><script>(function(){try{var saved=localStorage.getItem('pp360-theme');var dark=saved==='dark'||(!saved&&window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches);document.body.classList.toggle('dark',!!dark);document.documentElement.style.colorScheme=dark?'dark':'light';}catch(_){}})();</script>
+<!doctype html><html><head><meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"><meta http-equiv="Pragma" content="no-cache"><meta http-equiv="Expires" content="0"><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1,viewport-fit=cover'><meta name='theme-color' content='#0b3155'><title>PowerPlant360 | Power Plant Engineering Knowledge Platform</title><meta name='description' content='PowerPlant360 brings engineering calculators, technical knowledge and secure plant document management into one workspace for thermal power professionals.'><link rel='icon' href='icon.svg' type='image/svg+xml'><link rel='manifest' href='manifest.json'><meta name='apple-mobile-web-app-capable' content='yes'><meta name='apple-mobile-web-app-status-bar-style' content='default'><meta name='application-name' content='PowerPlant360'><link rel='stylesheet' href='styles.css?v=53'></head><body class='auth-locked'><script>(function(){try{var saved=localStorage.getItem('pp360-theme');var dark=saved==='dark'||(!saved&&window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches);document.body.classList.toggle('dark',!!dark);document.documentElement.style.colorScheme=dark?'dark':'light';}catch(_){}})();</script>
 <header><button id='mobileMenuBtn' class='mobile-menu-btn' type='button' aria-label='Open navigation' aria-controls='sidebar' aria-expanded='false'>☰</button><div class='brand-block'><b>PowerPlant360</b><small>Engineering Knowledge Assistant</small></div><div class='header-actions'><div id='headerUser' class='header-user'></div><button id='installBtn' onclick='installPP360()' title='Install PowerPlant360' style='display:none'>Install</button><button id='refreshBtn' title='Hard Refresh' aria-label='Hard Refresh'>↻</button><button id='theme' type='button' title='Toggle color theme' aria-label='Toggle color theme'>☾</button></div></header>
-<section id='authGate' class='auth-gate'>
-  <div class='auth-card'>
+<section id='authGate' class='auth-gate' aria-label='PowerPlant360 public homepage'>
+  <div class='public-site'>
+    <div class='public-topbar'>
+      <a class='public-wordmark' href='./' aria-label='PowerPlant360 home'><span class='public-mark' aria-hidden='true'>⚡</span> PowerPlant360</a>
+      <button type='button' class='public-signin' onclick='openPortalLogin()'>Member Login <span aria-hidden='true'>→</span></button>
+    </div>
+    <div class='public-hero'>
+      <div class='public-hero-copy'>
+        <span class='public-eyebrow'>ENGINEERING KNOWLEDGE PLATFORM</span>
+        <h1>Power plant knowledge.<br><span>One connected workspace.</span></h1>
+        <p>Practical tools for thermal power professionals. Bring engineering calculations, department knowledge and authorized plant documents into one streamlined portal.</p>
+        <div class='public-hero-actions'>
+          <button type='button' class='public-primary' onclick='openPortalLogin()'>Open Member Portal <span aria-hidden='true'>→</span></button>
+          <a href='#publicFeatures' class='public-secondary'>Explore Features</a>
+        </div>
+        <div class='public-trust'><span aria-hidden='true'>●</span> Private plant information is available only to authorized users.</div>
+      </div>
+      <div class='public-visual' aria-hidden='true'>
+        <div class='public-visual-top'><span class='public-visual-dot'></span><span class='public-visual-dot'></span><span class='public-visual-dot'></span><span>ENGINEERING WORKSPACE</span></div>
+        <div class='public-visual-title'>Plant Operations Toolkit</div>
+        <div class='public-visual-grid'>
+          <div><span>▤</span><strong>Calculators</strong><small>Plant performance</small></div>
+          <div><span>▣</span><strong>Documents</strong><small>Authorized library</small></div>
+          <div><span>⌕</span><strong>Plant Search</strong><small>Technical references</small></div>
+          <div><span>⚙</span><strong>Departments</strong><small>Organized knowledge</small></div>
+        </div>
+        <div class='public-visual-footer'><span>OPERATION</span><span>MECHANICAL</span><span>ELECTRICAL</span><span>WTP / ETP</span><span>C&amp;I</span></div>
+      </div>
+    </div>
+    <div id='publicFeatures' class='public-features'>
+      <div class='public-section-heading'><span class='public-eyebrow'>BUILT FOR POWER PLANTS</span><h2>Everything engineers need, organized.</h2><p>Purpose-built for everyday plant engineering workflows.</p></div>
+      <div class='public-feature-grid'>
+        <article><span class='public-feature-icon' aria-hidden='true'>∑</span><h3>Engineering Calculators</h3><p>Department-wise formulas, unit conversions and steam/water properties for routine engineering work.</p></article>
+        <article><span class='public-feature-icon' aria-hidden='true'>▤</span><h3>Plant Document Library</h3><p>Find technical files organized by equipment and department, with access restricted to approved members.</p></article>
+        <article><span class='public-feature-icon' aria-hidden='true'>⌕</span><h3>Knowledge Search</h3><p>Search authorized plant information from a single workspace, instead of hunting through folders.</p></article>
+        <article><span class='public-feature-icon' aria-hidden='true'>♙</span><h3>Role-Based Access</h3><p>Separate Admin, Engineer and Viewer capabilities for secure team collaboration.</p></article>
+      </div>
+    </div>
+    <div class='public-cta'><div><h2>Already part of the team?</h2><p>Sign in to your secure engineering workspace.</p></div><button type='button' onclick='openPortalLogin()'>Member Login →</button></div>
+    <footer class='public-footer'><span>© PowerPlant360 · Engineering Knowledge Assistant</span><span>Plant-specific decisions require approved OEM and site procedures.</span></footer>
+  </div>
+  <div class='auth-card' id='memberLoginCard'>
+    <button type='button' class='auth-close' onclick='showPublicHome()' aria-label='Back to public homepage'>← Back to website</button>
     <div class='auth-logo'>PowerPlant360</div>
     <div class='auth-subtitle'>Secure Engineering Knowledge Assistant</div>
     <div id='authGateBody'><div class='auth-loading'>Checking secure session…</div></div>
