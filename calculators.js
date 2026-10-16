@@ -289,6 +289,8 @@ const CONVERTERS={"Pressure":{"bar":100000,"kPa":1000,"MPa":1000000,"kg/cm²":98
   };
 
   function showGroup(group,button){
+    var calculatorMode=document.getElementById('calculatorMode');
+    if(calculatorMode) calculatorMode.classList.remove('calc-detail-open');
     document.querySelectorAll('[data-calc-group]').forEach(function(x){x.classList.toggle('active',x===button);});
     var list;
     var title=group;
@@ -326,6 +328,7 @@ const CONVERTERS={"Pressure":{"bar":100000,"kPa":1000,"MPa":1000000,"kg/cm²":98
         var selected=list.find(function(c){return c.id===id;});
         if(!detail||!selected) return;
         if(!detail.hidden && detail.getAttribute('data-selected-calc')===id){
+          if(calculatorMode) calculatorMode.classList.remove('calc-detail-open');
           detail.hidden=true;
           detail.innerHTML='';
           detail.removeAttribute('data-selected-calc');
@@ -340,10 +343,12 @@ const CONVERTERS={"Pressure":{"bar":100000,"kPa":1000,"MPa":1000000,"kg/cm²":98
         detail.innerHTML='<div class="calc-detail-toolbar"><button type="button" class="calc-close-btn">← All calculators</button></div>'+cardHtml(selected);
         detail.setAttribute('data-selected-calc',id);
         detail.hidden=false;
+        if(calculatorMode) calculatorMode.classList.add('calc-detail-open');
         detail.querySelector('.calc-close-btn').addEventListener('click',function(){
           detail.hidden=true;
           detail.innerHTML='';
           detail.removeAttribute('data-selected-calc');
+          if(calculatorMode) calculatorMode.classList.remove('calc-detail-open');
           btn.classList.remove('active');
           btn.setAttribute('aria-expanded','false');
           btn.focus();
