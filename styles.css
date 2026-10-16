@@ -1420,3 +1420,76 @@ html,body{width:100%;max-width:100%}
   #appShell .search-ai>button{min-height:46px}
   #appShell #view{width:100%}
 }
+
+
+/* iOS Safari: avoid input-focus auto-zoom persisting after login.
+   Safari zooms focused form elements with computed fonts below 16px;
+   this preserves user-controlled pinch/accessibility zoom. */
+@media (max-width:850px) {
+  input,select,textarea,
+  .auth-card input,.search-ai select,.search-ai input {
+    font-size:16px !important;
+  }
+  html,body {
+    min-width:0;
+    max-width:100%;
+    overflow-x:clip;
+  }
+  #appShell,.app-layout,.app-content,#view,.hero {
+    width:100%;
+    min-width:0;
+    max-width:100%;
+  }
+  #view .grid {
+    width:100%;
+    grid-template-columns:minmax(0,1fr);
+  }
+  .hero h1,.hero #scope {
+    max-width:100%;
+    overflow-wrap:break-word;
+  }
+  header {
+    width:100%;
+    max-width:100%;
+    min-width:0;
+    gap:6px;
+    padding:10px 12px;
+  }
+  header .mobile-menu-btn {
+    width:42px;
+    height:42px;
+    flex:0 0 42px;
+  }
+  header .brand-block {
+    flex:1 1 0;
+    min-width:0;
+    overflow:hidden;
+  }
+  header .brand-block b {
+    display:block;
+    font-size:clamp(13px,3.9vw,18px);
+    white-space:nowrap;
+    text-overflow:ellipsis;
+    overflow:hidden;
+  }
+  header .brand-block small {display:none}
+  header .header-actions {
+    gap:4px;
+    flex:0 0 auto;
+  }
+  header .header-actions button {
+    min-width:38px;
+    min-height:42px;
+    padding:7px 8px;
+  }
+  header .header-logout {
+    font-size:13px;
+    white-space:nowrap;
+  }
+}
+@media (max-width:390px) {
+  header {gap:4px;padding-inline:8px}
+  header .mobile-menu-btn {width:40px;height:40px;flex-basis:40px}
+  header .header-actions button {min-width:36px;padding:6px}
+  header .header-logout {font-size:12px}
+}
