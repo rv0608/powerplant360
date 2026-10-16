@@ -243,7 +243,10 @@ details p{margin:9px 0 2px;line-height:1.55}
 
 
 .search-ai{display:grid;grid-template-columns:minmax(140px,190px) minmax(0,1fr) auto;gap:8px;align-items:center}
-.search-ai select{height:48px;border-radius:12px;border:0;padding:0 12px;background:#fff}
+.search-ai select{height:48px;border-radius:12px;border:1px solid var(--line);padding:0 12px;background:var(--card);color:var(--ink);-webkit-text-fill-color:var(--ink);opacity:1;color-scheme:light}
+body.dark .search-ai select{color-scheme:dark}
+.search-ai select option{background:var(--card);color:var(--ink)}
+.search-ai select:focus-visible{outline:3px solid #ffd166;outline-offset:2px}
 .search-ai input{min-width:0}
 .search-ai button{white-space:nowrap}
 .ai-answer-badge{display:inline-block;font-size:12px;font-weight:700;padding:4px 8px;margin-bottom:10px;border-radius:999px;background:#e8f2ff;color:#0b4f8a}
