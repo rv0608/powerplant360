@@ -1613,3 +1613,31 @@ html,body{width:100%;max-width:100%}
 #calculatorMode.calc-detail-open .calc-group-title,
 #calculatorMode.calc-detail-open .calc-picker-grid { display:none!important; }
 #calculatorMode.calc-detail-open .calc-detail { margin-top:0; }
+
+
+/* Safer spacing for header controls, especially on touch devices. */
+header .header-actions { gap:12px; }
+header .header-actions button { min-height:44px; }
+header .header-actions button:focus-visible {
+  outline:3px solid #8ac5ff;
+  outline-offset:2px;
+}
+@media (max-width:850px) {
+  header .header-actions { gap:9px; }
+  header .header-actions button {
+    min-width:44px;
+    min-height:44px;
+    padding:8px 10px;
+  }
+  header .header-logout { padding-inline:11px; }
+}
+@media (max-width:600px) {
+  header .header-actions { gap:9px; }
+  header .header-actions button { min-width:44px; min-height:44px; }
+  header .header-logout { padding-inline:10px; }
+}
+@media (max-width:390px) {
+  header .header-actions { gap:7px; }
+  header .header-actions button { min-width:42px; min-height:44px; padding:8px; }
+  header .header-logout { padding-inline:8px; }
+}
