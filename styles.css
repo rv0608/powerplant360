@@ -962,3 +962,64 @@ body.auth-locked .header-user{display:none}
 @media(max-width:440px){
   .admin-side-nav{grid-template-columns:1fr}
 }
+
+
+/* Compact Stored Documents V1.1 */
+.admin-doc-placeholder{
+  margin-top:16px;
+  padding:28px 18px;
+  border:1px dashed #ccd8e5;
+  border-radius:12px;
+  background:#fafcff;
+  text-align:center;
+  color:var(--muted);
+}
+.admin-file-list{
+  margin-top:14px;
+  border:1px solid var(--line);
+  border-radius:12px;
+  overflow:hidden;
+  background:#fff;
+}
+.admin-file-row{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  gap:12px;
+  align-items:center;
+  padding:11px 12px;
+  border-bottom:1px solid var(--line);
+}
+.admin-file-row:last-child{border-bottom:0}
+.admin-file-name{
+  min-width:0;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.admin-file-name b{
+  display:block;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.admin-file-actions{
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  gap:6px;
+  flex-wrap:wrap;
+}
+.admin-file-actions button{
+  white-space:nowrap;
+}
+@media(max-width:720px){
+  .admin-file-row{
+    grid-template-columns:1fr;
+  }
+  .admin-file-actions{
+    justify-content:flex-start;
+  }
+  .admin-file-name b{
+    white-space:normal;
+    overflow-wrap:anywhere;
+  }
+}
