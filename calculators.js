@@ -239,6 +239,7 @@ const CONVERTERS={"Pressure":{"bar":100000,"kPa":1000,"MPa":1000000,"kg/cm²":98
           '</div>'+
         '</div>'+
         '<div id="calculatorMode">'+
+          '<div class="calc-search-row"><label for="calcSearch">Find a calculator</label><input id="calcSearch" type="search" placeholder="Search heat rate, pump, steam, electrical…" autocomplete="off" aria-controls="calcCards"><button type="button" id="calcSearchClear" aria-label="Clear calculator search">Clear</button></div>'+ 
           '<div class="calc-dept-buttons">'+groupButtons+'</div>'+
           '<div id="calcCards"></div>'+
         '</div>'+
@@ -274,7 +275,20 @@ const CONVERTERS={"Pressure":{"bar":100000,"kPa":1000,"MPa":1000000,"kg/cm²":98
     });
 
     document.querySelectorAll('[data-calc-group]').forEach(function(btn){
-      btn.addEventListener('click',function(){ showGroup(btn.getAttribute('data-calc-group'),btn); });
+      btn.addEventListener('click',function(){
+        var search=document.getElementById('calcSearch');if(search) search.value='';
+        showGroup(btn.getAttribute('data-calc-group'),btn);
+      });
+    });
+
+    var search=document.getElementById('calcSearch');
+    search.addEventListener('input',function(){
+      var q=search.value.trim();
+      if(q)showGroup('__search__',null);
+      else showGroup(GROUPS[0],document.querySelector('[data-calc-group="'+GROUPS[0]+'"]'));
+    });
+    document.getElementById('calcSearchClear').addEventListener('click',function(){
+      search.value='';showGroup(GROUPS[0],document.querySelector('[data-calc-group="'+GROUPS[0]+'"]'));search.focus();
     });
 
     updateFavoriteCount();
@@ -294,7 +308,11 @@ const CONVERTERS={"Pressure":{"bar":100000,"kPa":1000,"MPa":1000000,"kg/cm²":98
     document.querySelectorAll('[data-calc-group]').forEach(function(x){x.classList.toggle('active',x===button);});
     var list;
     var title=group;
-    if(group==='__favorites__'){
+    if(group==='__search__'){
+      var query=(document.getElementById('calcSearch')?.value||'').trim().toLowerCase();
+      list=CALCS.filter(function(c){return (c.t+' '+c.g+' '+c.id).toLowerCase().includes(query);});
+      title='Search Results';
+    }else if(group==='__favorites__'){
       var favIds=getFavorites();
       list=favIds.map(function(id){return CALCS.find(function(c){return c.id===id;});}).filter(Boolean);
       title='Favorites';
@@ -304,6 +322,11 @@ const CONVERTERS={"Pressure":{"bar":100000,"kPa":1000,"MPa":1000000,"kg/cm²":98
 
     var wrap=document.getElementById('calcCards');
     if(!wrap) return;
+
+    if(group==='__search__' && !list.length){
+      wrap.innerHTML='<div class="calc-group-title"><h3>Search Results</h3><span>0 calculators</span></div><p class="muted" role="status">No matching calculators. Try another name or department.</p>';
+      return;
+    }
 
     if(group==='__favorites__' && !list.length){
       wrap.innerHTML='<div class="calc-group-title"><h3>Favorites</h3><span>0 calculators</span></div>'+
@@ -360,6 +383,18 @@ const CONVERTERS={"Pressure":{"bar":100000,"kPa":1000,"MPa":1000000,"kg/cm²":98
     });
     updateFavoriteCount();
   }
+
+  window.openEngineeringCalculator=function(id){
+    var calc=CALCS.find(function(c){return c.id===id;});
+    if(!calc) return false;
+    var group=document.querySelectorAll('[data-calc-group]');
+    var target=Array.from(group).find(function(b){return b.getAttribute('data-calc-group')===calc.g;});
+    if(!target) return false;
+    target.click();
+    var picker=Array.from(document.querySelectorAll('[data-open-calc]')).find(function(b){return b.getAttribute('data-open-calc')===id;});
+    if(!picker) return false;
+    picker.click();return true;
+  };
 
   function steamWaterResult(v){
     if(typeof xsteam2==='undefined' || !xsteam2 || typeof xsteam2.h_pT!=='function'){
