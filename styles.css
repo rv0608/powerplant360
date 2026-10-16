@@ -1186,3 +1186,45 @@ body.auth-locked .header-user{display:none}
   .converter-units{grid-template-columns:1fr}
   .converter-arrow{display:none}
 }
+
+
+/* Calculator Favorites V1.1 */
+.power-calc-card-head{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:10px;
+  margin-bottom:11px;
+}
+.power-calc-card-head h4{
+  margin:0;
+}
+.calc-favorite-btn{
+  flex:0 0 auto;
+  min-width:38px;
+  width:38px;
+  height:38px;
+  padding:0;
+  border:1px solid var(--line);
+  border-radius:9px;
+  background:var(--card);
+  font-size:1.2rem;
+  line-height:1;
+  color:var(--muted);
+}
+.calc-favorite-btn:hover{
+  background:var(--soft);
+}
+.calc-favorite-btn.active{
+  color:#b77900;
+  background:#fff7df;
+  border-color:#e7c56d;
+}
+.calc-favorites-empty{
+  padding:24px 16px;
+  border:1px dashed var(--line);
+  border-radius:12px;
+  background:var(--soft);
+  text-align:center;
+}
+.calc-favorites-empty p{margin:6px 0 0}
