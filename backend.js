@@ -2424,7 +2424,7 @@
 
       wrap.innerHTML =
         '<div class="user-table-scroll"><table class="user-table">' +
-          '<tr><th>Email</th><th>Role</th><th>Created</th><th>Last Sign-in</th><th>Actions</th></tr>' +
+          '<thead><tr><th scope="col">Email</th><th scope="col">Role</th><th scope="col">Created</th><th scope="col">Last Sign-in</th><th scope="col">Actions</th></tr></thead><tbody>' +
           users.map(u => {
             const role = String(u?.role || 'viewer').toLowerCase();
             const isAdmin = role === 'admin';
@@ -2444,15 +2444,15 @@
                   '<button class="dangerbtn" onclick="deleteManagedUser(\'' + esc(u.id) + '\',\'' + esc(String(u.email || '')) + '\')">Delete</button>' +
                 '</div>';
 
-            return '<tr>' +
-              '<td><b>' + esc(String(u.email || '')) + '</b>' + (isCurrent ? '<div class="muted small">Signed in now</div>' : '') + '</td>' +
-              '<td>' + roleCell + '</td>' +
-              '<td>' + esc(managedUserDate(u?.created_at)) + '</td>' +
-              '<td>' + esc(managedUserDate(u?.last_sign_in_at)) + '</td>' +
-              '<td>' + actions + '</td>' +
+            return '<tr class="managed-user-row">' +
+              '<td data-label="Email" class="managed-user-email"><b>' + esc(String(u.email || '')) + '</b>' + (isCurrent ? '<div class="muted small">Signed in now</div>' : '') + '</td>' +
+              '<td data-label="Role">' + roleCell + '</td>' +
+              '<td data-label="Created">' + esc(managedUserDate(u?.created_at)) + '</td>' +
+              '<td data-label="Last Sign-in">' + esc(managedUserDate(u?.last_sign_in_at)) + '</td>' +
+              '<td data-label="Actions" class="managed-user-action-cell">' + actions + '</td>' +
             '</tr>';
           }).join('') +
-        '</table></div>';
+        '</tbody></table></div>';
     } catch (err) {
       wrap.innerHTML = '<div class="notice"><b>Could not load users.</b><br>' + esc(err?.message || String(err)) + '</div>';
     }
