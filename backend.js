@@ -2013,7 +2013,6 @@
             <div class="department-filter-wrap">
               <div class="department-filter-label">Department</div>
               <div class="department-filter-buttons">
-                <button class="dept-filter-btn active" data-category="" onclick="setAdminDocCategory('',this)">All</button>
                 ${categories.map(c => `<button class="dept-filter-btn" data-category="${esc(c)}" onclick="setAdminDocCategory('${esc(c)}',this)">${esc(c)}</button>`).join('')}
               </div>
               <select id="filterCategory" class="admin-hidden-filter" aria-hidden="true">
@@ -2022,21 +2021,9 @@
               </select>
             </div>
 
-            <div class="doc-toolbar admin-doc-toolbar">
-              <div>
-                <label>Document type</label>
-                <select id="filterType" onchange="renderDocTable()">
-                  <option value="">All document types</option>
-                  ${docTypes.map(t => `<option>${t}</option>`).join('')}
-                </select>
-              </div>
-              <div class="grow">
-                <label>Search files</label>
-                <input id="docSearch" oninput="renderDocTable()" placeholder="Search filename...">
-              </div>
-            </div>
-
-            <div id="docTableWrap"><p class="muted">Loading documents…</p></div>
+            <input id="filterType" type="hidden" value="">
+            <input id="docSearch" type="hidden" value="">
+            <div id="docTableWrap"><div class="admin-doc-placeholder">Select a department above to view its uploaded documents.</div></div>
           </div>
         </section>
       </div>
@@ -3344,7 +3331,13 @@
       btn.classList.toggle('active', btn.getAttribute('data-admin-nav') === name);
     });
 
-    if (name === 'documents') renderDocTable();
+    if (name === 'documents') {
+      const select = document.getElementById('filterCategory');
+      if (select && !select.value) {
+        document.querySelectorAll('.dept-filter-btn').forEach(btn => btn.classList.remove('active'));
+      }
+      renderDocTable();
+    }
     if (name === 'system') {
       renderStorageUsage();
       loadApiUsage();
@@ -3378,17 +3371,18 @@
       (!qs || (d.file_name || '').toLowerCase().includes(qs))
     );
 
-    if (!list.length) {
-      wrap.innerHTML = '<div class="emptydocs"><b>No files found.</b><p class="muted">Choose another department or use Upload Documents.</p></div>';
+    if (!fc) {
+      wrap.innerHTML = '<div class="admin-doc-placeholder">Select a department above to view its uploaded documents.</div>';
       return;
     }
 
-    wrap.innerHTML = `<div class="table-scroll"><table class="doctable">
-      <tr>
-        <th>Name</th><th>Category</th><th>Type</th><th>Size</th><th>Pages</th>
-        <th>Uploaded</th><th>Status</th><th>Actions</th>
-      </tr>
-      ${list.map(d => {
+    if (!list.length) {
+      wrap.innerHTML = '<div class="emptydocs"><b>No files in this department.</b><p class="muted">Use Upload Documents to add files.</p></div>';
+      return;
+    }
+
+    wrap.innerHTML = '<div class="admin-file-list">' +
+      list.map(d => {
         const visionPages = Array.isArray(d?.metadata?.vision_indexed_pages)
           ? d.metadata.vision_indexed_pages.map(Number).filter(x => Number.isInteger(x) && x > 0)
           : [];
@@ -3397,50 +3391,46 @@
         const visionTotalWeak = visionCount + visionRemaining;
         const visionComplete = isPdfDocument(d) && visionRemaining === 0;
 
-        const visionStatus = '';
-
         const visionButtonLabel = visionComplete
           ? 'Vision Complete'
-          : (
-              visionCount
-                ? 'Vision Index PDF · ' + visionCount + ' / ' + visionTotalWeak
-                : 'Vision Index PDF'
-            );
+          : (visionCount
+              ? 'Vision Index · ' + visionCount + ' / ' + visionTotalWeak
+              : 'Vision Index');
 
-        return `<tr>
-        <td><b>${esc(d.file_name)}</b></td>
-        <td>${esc(d.category || 'General')}</td>
-        <td>${esc(d.document_type || 'Other')}</td>
-        <td>${formatBytes(d.file_size)}</td>
-        <td>${
-          Number(d.page_count || 0) > 0
-            ? Number(d.page_count)
-            : (isIndexableImageFile(d) ? 1 : '—')
-        }</td>
-        <td>${d.created_at ? new Date(d.created_at).toLocaleString() : '—'}</td>
-        <td><span class="badge ok">${esc(d.processing_status || 'uploaded')}</span></td>
-        <td class="nowrap">
-          ${((d.mime_type||'').includes('pdf') || (d.file_name||'').toLowerCase().endsWith('.pdf')) && d.processing_status !== 'ready'
-            ? `<button onclick="indexExistingPdf('${d.id}')">Index PDF</button>`
-            : ''}
-          ${isPdfDocument(d) && d.processing_status === 'ready'
-            ? (visionComplete
-                ? `<button disabled>${visionButtonLabel}</button>`
-                : `<button onclick="visionIndexPdf('${d.id}')">${visionButtonLabel}</button>`)
-            : ''}
-          ${isIndexableImageFile(d) && d.processing_status !== 'ready'
-            ? `<button onclick="indexExistingImage('${d.id}')">Index Image</button>`
-            : ''}
-          ${isIndexableOfficeFile(d) && d.processing_status !== 'ready'
-            ? `<button onclick="indexExistingOffice('${d.id}')">Index Office</button>`
-            : ''}
-          <button onclick="viewDocument('${d.id}')">View</button>
-          <button onclick="editDoc('${d.id}')">Edit</button>
-          <button class="dangerbtn" onclick="del('${d.id}')">Delete</button>
-        </td>
-      </tr>`;
-      }).join('')}
-    </table></div>`;
+        const indexAction =
+          ((d.mime_type||'').includes('pdf') || (d.file_name||'').toLowerCase().endsWith('.pdf')) && d.processing_status !== 'ready'
+            ? '<button onclick="indexExistingPdf(\'' + d.id + '\')">Index PDF</button>'
+            : (
+                isPdfDocument(d) && d.processing_status === 'ready'
+                  ? (
+                      visionComplete
+                        ? '<button disabled>' + visionButtonLabel + '</button>'
+                        : '<button onclick="visionIndexPdf(\'' + d.id + '\')">' + visionButtonLabel + '</button>'
+                    )
+                  : (
+                      isIndexableImageFile(d) && d.processing_status !== 'ready'
+                        ? '<button onclick="indexExistingImage(\'' + d.id + '\')">Index Image</button>'
+                        : (
+                            isIndexableOfficeFile(d) && d.processing_status !== 'ready'
+                              ? '<button onclick="indexExistingOffice(\'' + d.id + '\')">Index Office</button>'
+                              : ''
+                          )
+                    )
+              );
+
+        return '<div class="admin-file-row">' +
+          '<div class="admin-file-name" title="' + esc(d.file_name || '') + '">' +
+            '<b>' + esc(d.file_name || 'Unnamed document') + '</b>' +
+          '</div>' +
+          '<div class="admin-file-actions">' +
+            indexAction +
+            '<button onclick="viewDocument(\'' + d.id + '\')">View</button>' +
+            '<button onclick="editDoc(\'' + d.id + '\')">Edit</button>' +
+            '<button class="dangerbtn" onclick="del(\'' + d.id + '\')">Delete</button>' +
+          '</div>' +
+        '</div>';
+      }).join('') +
+    '</div>';
   };
 
   editDoc = function (id) {
