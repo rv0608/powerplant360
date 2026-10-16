@@ -1870,139 +1870,176 @@
     document.getElementById('scope').textContent =
       'Authorized Admin mode: private plant documents enabled.';
 
-    v.innerHTML = `<div class="card admin admin-simple">
-      <div class="adminhead adminhead-simple">
+    v.innerHTML = `<div class="card admin admin-dashboard-card">
+      <div class="adminhead admin-dashboard-head">
         <div>
           <h2>Admin</h2>
           <p class="muted">${esc(backendSession.user.email || 'Admin')}</p>
         </div>
       </div>
 
-      <details class="admin-simple-section admin-upload-section" open>
-        <summary>Upload Documents</summary>
-        <div class="admin-section-body">
-      <div id="dropZone" class="dropzone" tabindex="0">
-        <div class="dropicon">⬆️</div>
-        <h3>Upload plant files</h3>
+      <div class="admin-dashboard">
+        <aside class="admin-side-nav" aria-label="Admin sections">
+          <button class="admin-side-btn" data-admin-nav="upload" onclick="showAdminPanel('upload',this)">
+            <span class="admin-nav-icon">⬆</span><span>Upload Documents</span>
+          </button>
+          <button class="admin-side-btn" data-admin-nav="system" onclick="showAdminPanel('system',this)">
+            <span class="admin-nav-icon">▥</span><span>System Status</span>
+          </button>
+          <button class="admin-side-btn" data-admin-nav="users" onclick="showAdminPanel('users',this)">
+            <span class="admin-nav-icon">👥</span><span>User Management</span>
+          </button>
+          <button class="admin-side-btn" data-admin-nav="backup" onclick="showAdminPanel('backup',this)">
+            <span class="admin-nav-icon">◫</span><span>Backup & Recovery</span>
+          </button>
+          <button class="admin-side-btn active" data-admin-nav="documents" onclick="showAdminPanel('documents',this)">
+            <span class="admin-nav-icon">▤</span><span>Stored Documents</span>
+          </button>
+        </aside>
 
-        <div class="paste-upload-category">
-          <label for="uploadCategory">Department</label>
-          <select id="uploadCategory">
-            <option value="">Auto detect from filename</option>
-            ${categories.map(c => `<option>${c}</option>`).join('')}
-          </select>
-        </div>
-
-        <div class="paste-upload-hint"><b>Paste screenshot:</b> click here, then press <b>Ctrl+V</b></div>
-
-        <p>or</p>
-        <label class="uploadchoose">Choose Files
-          <input id="file" type="file" multiple
-            accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.png,.jpg,.jpeg" hidden>
-        </label>
-        <p class="muted">Private storage • PDF, Word, Excel, CSV, TXT and images</p>
-      </div>
-
-      <div id="uploadQueue" class="uploadqueue"></div>
-        </div>
-      </details>
-
-      <details class="admin-simple-section">
-        <summary>System Status</summary>
-        <div class="admin-section-body compact-status-area">
-          <div id="storageUsage" class="storage-usage"><div class="muted small">Storage monitor loading…</div></div>
-          <div id="apiUsage" class="storage-usage"><div class="muted small">AI Usage & Cost loading…</div></div>
-        </div>
-      </details>
-
-      <details class="user-management-card admin-simple-section">
-        <summary>User Management</summary>
-        <div class="user-management-body">
-          <div class="user-create-grid">
-            <div>
-              <label for="newUserEmail">Email</label>
-              <input id="newUserEmail" type="email" autocomplete="off" placeholder="engineer@example.com">
+        <section class="admin-main-panel">
+          <div class="admin-panel" data-admin-panel="upload" hidden>
+            <div class="admin-panel-heading">
+              <h3>Upload Documents</h3>
+              <p class="muted">Upload plant files or paste a screenshot directly.</p>
             </div>
-            <div>
-              <label for="newUserPassword">Temporary password</label>
-              <input id="newUserPassword" type="password" autocomplete="new-password" placeholder="Minimum 8 characters">
+
+            <div id="dropZone" class="dropzone admin-upload-box" tabindex="0">
+              <div class="dropicon">⬆️</div>
+              <h3>Upload plant files</h3>
+
+              <div class="paste-upload-category">
+                <label for="uploadCategory">Department</label>
+                <select id="uploadCategory">
+                  <option value="">Auto detect from filename</option>
+                  ${categories.map(c => `<option>${c}</option>`).join('')}
+                </select>
+              </div>
+
+              <div class="paste-upload-hint"><b>Paste screenshot:</b> click here, then press <b>Ctrl+V</b></div>
+              <p>or</p>
+              <label class="uploadchoose">Choose Files
+                <input id="file" type="file" multiple
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.png,.jpg,.jpeg" hidden>
+              </label>
+              <p class="muted">Private storage • PDF, Word, Excel, CSV, TXT and images</p>
             </div>
-            <div>
-              <label for="newUserRole">Role</label>
-              <select id="newUserRole">
-                <option value="engineer">Engineer</option>
-                <option value="viewer">Viewer</option>
-              </select>
+
+            <div id="uploadQueue" class="uploadqueue"></div>
+          </div>
+
+          <div class="admin-panel" data-admin-panel="system" hidden>
+            <div class="admin-panel-heading">
+              <h3>System Status</h3>
+              <p class="muted">Storage, indexing and AI usage at a glance.</p>
             </div>
-            <div class="user-create-action">
-              <button class="primary" id="createUserBtn" onclick="createManagedUser()">Add User</button>
+            <div class="compact-status-area">
+              <div id="storageUsage" class="storage-usage"><div class="muted small">Storage monitor loading…</div></div>
+              <div id="apiUsage" class="storage-usage"><div class="muted small">AI Usage & Cost loading…</div></div>
             </div>
           </div>
-          <div id="userManageMsg" class="muted small"></div>
-          <div class="user-test-note">
-            For role testing, use an <b>Incognito / Private</b> window.
-          </div>
-          <div id="userListWrap" class="user-list-wrap"><div class="muted small">Loading users…</div></div>
-        </div>
-      </details>
 
-      <details class="backup-card admin-simple-section">
-        <summary>Backup & Recovery</summary>
-        <div class="backup-body">
-          <p class="muted">Create local backups of the Supabase database content and private plant files. Store downloaded backups securely.</p>
-
-          <div class="backup-grid">
-            <div class="backup-option">
-              <h4>Database Backup</h4>
-              <p class="muted small">Exports document metadata + indexed text, user/role inventory, and API usage. Passwords are never included.</p>
-              <button class="primary" id="backupJsonBtn" onclick="exportProductionBackup()">Export Database Backup</button>
+          <div class="admin-panel" data-admin-panel="users" hidden>
+            <div class="admin-panel-heading">
+              <h3>User Management</h3>
+              <p class="muted">Create and manage Engineer and Viewer accounts.</p>
             </div>
 
-            <div class="backup-option">
-              <h4>Private Files Backup</h4>
-              <p class="muted small">Download one department at a time as a ZIP with a recovery manifest.</p>
-              <select id="backupCategory">
-                <option value="">Select department</option>
+            <div class="user-management-body admin-panel-body-clean">
+              <div class="user-create-grid">
+                <div>
+                  <label for="newUserEmail">Email</label>
+                  <input id="newUserEmail" type="email" autocomplete="off" placeholder="engineer@example.com">
+                </div>
+                <div>
+                  <label for="newUserPassword">Temporary password</label>
+                  <input id="newUserPassword" type="password" autocomplete="new-password" placeholder="Minimum 8 characters">
+                </div>
+                <div>
+                  <label for="newUserRole">Role</label>
+                  <select id="newUserRole">
+                    <option value="engineer">Engineer</option>
+                    <option value="viewer">Viewer</option>
+                  </select>
+                </div>
+                <div class="user-create-action">
+                  <button class="primary" id="createUserBtn" onclick="createManagedUser()">Add User</button>
+                </div>
+              </div>
+              <div id="userManageMsg" class="muted small"></div>
+              <div class="user-test-note">For role testing, use an <b>Incognito / Private</b> window.</div>
+              <div id="userListWrap" class="user-list-wrap"><div class="muted small">Loading users…</div></div>
+            </div>
+          </div>
+
+          <div class="admin-panel" data-admin-panel="backup" hidden>
+            <div class="admin-panel-heading">
+              <h3>Backup & Recovery</h3>
+              <p class="muted">Create database and private-file recovery backups.</p>
+            </div>
+
+            <div class="backup-body admin-panel-body-clean">
+              <div class="backup-grid">
+                <div class="backup-option">
+                  <h4>Database Backup</h4>
+                  <p class="muted small">Metadata, indexed text, users/roles and API usage.</p>
+                  <button class="primary" id="backupJsonBtn" onclick="exportProductionBackup()">Export Database Backup</button>
+                </div>
+
+                <div class="backup-option">
+                  <h4>Private Files Backup</h4>
+                  <p class="muted small">Download one department as a recovery ZIP.</p>
+                  <select id="backupCategory">
+                    <option value="">Select department</option>
+                    ${categories.map(c => `<option>${c}</option>`).join('')}
+                  </select>
+                  <button id="backupZipBtn" onclick="backupDepartmentZip()">Download Department ZIP</button>
+                </div>
+              </div>
+
+              <div id="backupStatus" class="muted small backup-status"></div>
+              <div class="backup-actions">
+                <button onclick="window.open('BACKUP_RECOVERY.md','_blank')">Recovery Guide</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="admin-panel active" data-admin-panel="documents">
+            <div class="admin-panel-heading">
+              <h3>Stored Documents</h3>
+              <p class="muted">View and manage uploaded plant documents department-wise.</p>
+            </div>
+
+            <div class="department-filter-wrap">
+              <div class="department-filter-label">Department</div>
+              <div class="department-filter-buttons">
+                <button class="dept-filter-btn active" data-category="" onclick="setAdminDocCategory('',this)">All</button>
+                ${categories.map(c => `<button class="dept-filter-btn" data-category="${esc(c)}" onclick="setAdminDocCategory('${esc(c)}',this)">${esc(c)}</button>`).join('')}
+              </div>
+              <select id="filterCategory" class="admin-hidden-filter" aria-hidden="true">
+                <option value="">All categories</option>
                 ${categories.map(c => `<option>${c}</option>`).join('')}
               </select>
-              <button id="backupZipBtn" onclick="backupDepartmentZip()">Download Department ZIP</button>
             </div>
-          </div>
 
-          <div id="backupStatus" class="muted small backup-status"></div>
-          <div class="backup-actions">
-            <button onclick="window.open('BACKUP_RECOVERY.md','_blank')">View Recovery Guide</button>
-          </div>
-        </div>
-      </details>
+            <div class="doc-toolbar admin-doc-toolbar">
+              <div>
+                <label>Document type</label>
+                <select id="filterType" onchange="renderDocTable()">
+                  <option value="">All document types</option>
+                  ${docTypes.map(t => `<option>${t}</option>`).join('')}
+                </select>
+              </div>
+              <div class="grow">
+                <label>Search files</label>
+                <input id="docSearch" oninput="renderDocTable()" placeholder="Search filename...">
+              </div>
+            </div>
 
-      <details class="admin-simple-section admin-documents-section" open>
-        <summary>Stored Documents</summary>
-        <div class="admin-section-body">
-      <div class="doc-toolbar">
-        <div>
-          <label>Category filter</label>
-          <select id="filterCategory" onchange="renderDocTable()">
-            <option value="">All categories</option>
-            ${categories.map(c => `<option>${c}</option>`).join('')}
-          </select>
-        </div>
-        <div>
-          <label>Document type</label>
-          <select id="filterType" onchange="renderDocTable()">
-            <option value="">All document types</option>
-            ${docTypes.map(t => `<option>${t}</option>`).join('')}
-          </select>
-        </div>
-        <div class="grow">
-          <label>Search files</label>
-          <input id="docSearch" oninput="renderDocTable()" placeholder="Search filename...">
-        </div>
+            <div id="docTableWrap"><p class="muted">Loading documents…</p></div>
+          </div>
+        </section>
       </div>
-
-      <div id="docTableWrap"><p class="muted">Loading documents…</p></div>
-        </div>
-      </details>
     </div>`;
 
     setupDropZone();
@@ -3294,6 +3331,38 @@
     `;
   }
 
+  window.showAdminPanel = function(name, button) {
+    if (backendRole !== 'admin') return;
+
+    document.querySelectorAll('.admin-panel').forEach(panel => {
+      const active = panel.getAttribute('data-admin-panel') === name;
+      panel.hidden = !active;
+      panel.classList.toggle('active', active);
+    });
+
+    document.querySelectorAll('.admin-side-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.getAttribute('data-admin-nav') === name);
+    });
+
+    if (name === 'documents') renderDocTable();
+    if (name === 'system') {
+      renderStorageUsage();
+      loadApiUsage();
+    }
+    if (name === 'users') loadUserManagement();
+  };
+
+  window.setAdminDocCategory = function(category, button) {
+    const select = document.getElementById('filterCategory');
+    if (select) select.value = category || '';
+
+    document.querySelectorAll('.dept-filter-btn').forEach(btn => {
+      btn.classList.toggle('active', (btn.getAttribute('data-category') || '') === (category || ''));
+    });
+
+    renderDocTable();
+  };
+
   renderDocTable = function () {
     renderStorageUsage();
     const wrap = document.getElementById('docTableWrap');
@@ -3310,7 +3379,7 @@
     );
 
     if (!list.length) {
-      wrap.innerHTML = '<div class="emptydocs"><b>No files found.</b><p class="muted">Drag files into the upload box above.</p></div>';
+      wrap.innerHTML = '<div class="emptydocs"><b>No files found.</b><p class="muted">Choose another department or use Upload Documents.</p></div>';
       return;
     }
 
