@@ -1240,3 +1240,166 @@ body.auth-locked .header-user{display:none}
   font-size:.78rem;
   font-weight:750;
 }
+
+
+/* Responsive PowerPlant360 app navigation and persistent light/dark theme */
+:root { --soft:#edf4fa; }
+body.dark {
+  --bg:#0d1521; --card:#192636; --ink:#f0f5fa;
+  --muted:#b9c6d5; --brand:#0b3155; --accent:#53a8ef;
+  --line:#35465a; --soft:#233346;
+}
+#appShell { max-width:1440px; padding:20px 22px; }
+.app-layout { display:grid; grid-template-columns:216px minmax(0,1fr); align-items:start; gap:18px; }
+.app-content { min-width:0; }
+.app-sidebar {
+  position:sticky; top:16px; z-index:5;
+  max-height:calc(100vh - 32px); overflow-y:auto;
+  border:1px solid var(--line); border-radius:14px;
+  background:var(--card); box-shadow:0 2px 10px rgba(0,0,0,.05);
+}
+.sidebar-head {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:15px 14px 9px; color:var(--ink); font-size:.9rem;
+  border-bottom:1px solid var(--line);
+}
+#tabs.side-tabs {
+  display:flex; flex-direction:column; gap:5px;
+  padding:10px; margin:0; overflow:visible;
+}
+#tabs.side-tabs button {
+  width:100%; min-height:44px; white-space:normal;
+  padding:10px 12px; text-align:left; font-weight:650;
+  background:transparent; color:var(--ink);
+  border:1px solid transparent; border-radius:10px;
+  transition:background .15s ease;
+}
+#tabs.side-tabs button:hover { background:var(--soft); }
+#tabs.side-tabs button.active {
+  background:#2466a3; color:#fff; border-color:#2466a3;
+}
+.mobile-menu-btn,.sidebar-close,.nav-backdrop { display:none; }
+#view { min-width:0; margin-top:16px; }
+#view table { display:table; }
+#view .table-scroll,#view .user-table-scroll { max-width:100%; }
+#theme,#refreshBtn { font-size:1.1rem; }
+
+/* Explicit contrast for panels that previously remained white in dark mode. */
+.dark .admin-main-panel,
+.dark .admin-side-nav,.dark .admin-side-btn,
+.dark .dept-filter-btn,.dark .admin-file-list,.dark .docgroup,
+.dark .usage-card,.dark .equipment-uploadbar,
+.dark .admin-doc-placeholder,.dark .admin-upload-box,
+.dark .auth-card,.dark .spreadsheet-modalbox {
+  background:var(--card); color:var(--ink); border-color:var(--line);
+}
+.dark .admin-side-nav,.dark .admin-doc-placeholder,
+.dark .equipment-uploadbar,.dark .dept-filter-btn {
+  background:var(--soft);
+}
+.dark .admin-side-btn:hover,.dark .dept-filter-btn:hover { background:#304a62; }
+.dark .admin-side-btn.active,.dark .dept-filter-btn.active {
+  background:#2466a3; border-color:#2466a3; color:#fff;
+}
+.dark .admin-dashboard-head,
+.dark .admin-file-row,.dark .equipment-doc-row,
+.dark .multi-answer-row,.dark .simple-answer-lines>div {
+  border-color:var(--line);
+}
+.dark .usage-card span,.dark .usage-card small,
+.dark .usage-plan,.dark .online-reference-note { color:var(--muted); }
+.dark .search-ai select { background:var(--card); color:var(--ink); border:1px solid var(--line); }
+.dark .linkbtn { color:#8cc7ff; }
+.dark .badge { background:#21496b; color:#d9edff; }
+.dark .badge.ok { background:#173d2c; color:#a6efbd; }
+.dark .badge.danger { background:#4a2328; color:#ffc3c3; }
+.dark .calc-error,.dark .errtext { color:#ffaaa6; }
+.dark .oktext { color:#a6efbd; }
+.dark .calc-favorite-btn.active { background:#4e3d1b; border-color:#9d7c34; color:#ffd47b; }
+.dark .admin { background:#38321c; border-color:#74622d; }
+.dark .header-logout { background:#f1f4f8; color:#922222; }
+.dark .header-login { background:#f1f4f8; color:#12314e; }
+.dark .converter-card,.dark .converter-note,.dark .power-calc-card {
+  color:var(--ink); background:var(--card); border-color:var(--line);
+}
+.dark .search-ai input { background:var(--card); color:var(--ink); border:1px solid var(--line); }
+.dark .search-ai input::placeholder { color:var(--muted); }
+.dark .actions button:not(.primary),.dark .admin-actions button:not(.primary) {
+  background:var(--soft); color:var(--ink); border:1px solid var(--line);
+}
+.dark #theme,.dark #refreshBtn { background:#203d5a; color:#fff; }
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible {
+  outline:3px solid #72b7f3; outline-offset:2px;
+}
+@media(max-width:1000px){
+  #appShell { padding:14px; }
+  .app-layout { grid-template-columns:190px minmax(0,1fr); gap:12px; }
+}
+@media(max-width:850px){
+  #appShell { padding:12px; }
+  .app-layout { display:block; }
+  .app-sidebar {
+    position:fixed; left:0; top:0; bottom:0;
+    width:min(310px,86vw); max-height:100dvh; height:100dvh;
+    z-index:1002; border-radius:0 16px 16px 0;
+    transform:translateX(-105%); visibility:hidden;
+    transition:transform .2s ease,visibility .2s ease;
+    box-shadow:10px 0 32px rgba(0,0,0,.23);
+  }
+  body.nav-open .app-sidebar { transform:translateX(0); visibility:visible; }
+  .sidebar-head { padding:18px 14px; }
+  .sidebar-close {
+    display:inline-flex; align-items:center; justify-content:center;
+    width:44px; height:44px; padding:0; color:var(--ink);
+    background:var(--soft); border:1px solid var(--line);
+    font-size:1.6rem;
+  }
+  .mobile-menu-btn {
+    display:inline-flex; align-items:center; justify-content:center;
+    flex:0 0 44px; width:44px; height:44px; padding:0;
+    color:#fff; background:rgba(255,255,255,.15); font-size:1.25rem;
+  }
+  .nav-backdrop {
+    display:block; position:fixed; inset:0;
+    z-index:1001; background:rgba(3,13,24,.64);
+    opacity:0; visibility:hidden; pointer-events:none;
+    transition:opacity .2s ease,visibility .2s ease;
+  }
+  body.nav-open .nav-backdrop { opacity:1; visibility:visible; pointer-events:auto; }
+  body.nav-open { overflow:hidden; }
+  body.auth-locked .mobile-menu-btn { display:none; }
+  body.auth-locked.nav-open { overflow:auto; }
+  header { justify-content:initial; gap:9px; }
+  .brand-block { flex:1; min-width:0; }
+  .brand-block b { font-size:19px; }
+  .header-actions { flex:0 0 auto; }
+}
+@media(max-width:600px){
+  #appShell { padding:10px; }
+  .hero { padding:17px 14px; border-radius:14px; }
+  .hero h1 { font-size:1.28rem; line-height:1.35; margin-bottom:14px; }
+  .grid { grid-template-columns:1fr; gap:10px; }
+  .card { padding:14px; }
+  .header-user-identity { display:none; }
+  .header-actions { gap:5px; }
+  .header-actions button { min-width:40px; min-height:40px; }
+  .header-logout { padding:9px 8px; }
+  .tools-head { gap:12px; }
+  .tool-mode-tabs { width:100%; }
+  .tool-mode-tabs button { flex:1; }
+  .calc-result-line { flex-wrap:wrap; }
+  .calc-result-line strong { overflow-wrap:anywhere; }
+  #view .actions button { min-height:42px; }
+}
+@media(max-width:390px){
+  header { gap:5px; padding:10px 8px; }
+  .brand-block b { font-size:17px; }
+  .brand-block small { display:none; }
+  .header-actions { gap:3px; }
+  #installBtn { display:none !important; }
+  #refreshBtn,#theme { min-width:38px; padding:8px; }
+  .header-logout { font-size:.77rem; padding:8px 6px; }
+}
+@media(prefers-reduced-motion:reduce){
+ .app-sidebar,.nav-backdrop { transition:none; }
+}
