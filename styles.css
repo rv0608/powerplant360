@@ -1228,3 +1228,15 @@ body.auth-locked .header-user{display:none}
   text-align:center;
 }
 .calc-favorites-empty p{margin:6px 0 0}
+
+
+/* Steam / water enthalpy result */
+.steam-state-line{
+  margin:-2px 0 8px;
+  padding:7px 9px;
+  border-radius:8px;
+  background:var(--card);
+  border:1px solid var(--line);
+  font-size:.78rem;
+  font-weight:750;
+}
