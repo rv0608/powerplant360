@@ -234,10 +234,11 @@ function renderTabs(active='Home'){
  const canSeeAdmin=window.pp360SignedIn===true && admin;
  const visibleTabs=tabs.filter(x=>x!=='Admin'||canSeeAdmin);
  if(!visibleTabs.includes(active)) active='Home';
- document.getElementById('tabs').innerHTML=visibleTabs.map(x=>`<button class='${x===active?'active':''}' onclick="show('${x}')">${x}</button>`).join('');
+ document.getElementById('tabs').innerHTML=visibleTabs.map(x=>`<button type='button' class='${x===active?'active':''}' ${x===active?'aria-current="page"':''} onclick="show('${x}')">${x}</button>`).join('');
 }
 
 function show(x){
+ closePP360Nav(false);
  if(x==='Admin' && !(window.pp360SignedIn===true && admin)) x='Home';
  renderTabs(x);
  const v=document.getElementById('view');
@@ -784,6 +785,60 @@ function del(i){
 function calcPower(){let p=Math.sqrt(3)*(+volt.value)*(+amp.value)*(+pf.value)/1000;document.getElementById('calc').innerHTML=`<b>Power = ${isFinite(p)?p.toFixed(2):0} kW</b>`}
 
 // Enter key is handled by backend.js so only one Plant Data search runs.
-document.getElementById('theme').onclick=()=>document.body.classList.toggle('dark');
+// Persistent accessible theme control: respect saved choice, then device preference.
+const pp360ThemeButton=document.getElementById('theme');
+function applyPP360Theme(dark){
+ document.body.classList.toggle('dark',dark);
+ document.documentElement.style.colorScheme=dark?'dark':'light';
+ pp360ThemeButton.textContent=dark?'☀':'☾';
+ pp360ThemeButton.setAttribute('aria-label',dark?'Switch to light mode':'Switch to dark mode');
+ pp360ThemeButton.setAttribute('title',dark?'Switch to light mode':'Switch to dark mode');
+}
+applyPP360Theme(document.body.classList.contains('dark'));
+pp360ThemeButton.onclick=()=>{
+ const dark=!document.body.classList.contains('dark');
+ applyPP360Theme(dark);
+ try{localStorage.setItem('pp360-theme',dark?'dark':'light');}catch(_){}
+};
+
+// Mobile navigation is a drawer; the desktop navigation stays visible.
+const pp360MenuButton=document.getElementById('mobileMenuBtn');
+const pp360CloseButton=document.getElementById('closeNavBtn');
+const pp360Backdrop=document.getElementById('navBackdrop');
+function closePP360Nav(restoreFocus){
+ const wasOpen=document.body.classList.contains('nav-open');
+ document.body.classList.remove('nav-open');
+ if(pp360MenuButton){
+   pp360MenuButton.setAttribute('aria-expanded','false');
+   pp360MenuButton.setAttribute('aria-label','Open navigation');
+ }
+ if(wasOpen&&restoreFocus&&pp360MenuButton)pp360MenuButton.focus();
+}
+function openPP360Nav(){
+ if(document.body.classList.contains('auth-locked'))return;
+ document.body.classList.add('nav-open');
+ pp360MenuButton.setAttribute('aria-expanded','true');
+ pp360MenuButton.setAttribute('aria-label','Close navigation');
+ const selected=document.querySelector('#tabs button.active');
+ (selected||pp360CloseButton).focus();
+}
+if(pp360MenuButton)pp360MenuButton.addEventListener('click',()=>{
+ if(document.body.classList.contains('nav-open'))closePP360Nav(true);
+ else openPP360Nav();
+});
+if(pp360CloseButton)pp360CloseButton.addEventListener('click',()=>closePP360Nav(true));
+if(pp360Backdrop)pp360Backdrop.addEventListener('click',()=>closePP360Nav(true));
+document.addEventListener('keydown',event=>{
+ if(event.key==='Escape'&&document.body.classList.contains('nav-open'))closePP360Nav(true);
+ if(event.key==='Tab'&&document.body.classList.contains('nav-open')){
+   const focusable=Array.from(document.querySelectorAll('#sidebar button:not([disabled])'));
+   if(!focusable.length)return;
+   const first=focusable[0],last=focusable[focusable.length-1];
+   if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus();}
+   else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus();}
+ }
+});
+window.addEventListener('resize',()=>{if(window.innerWidth>850)closePP360Nav(false);});
+
 // Service worker disabled in local-test build. It will be enabled after HTTPS deployment.
 renderTabs();show('Home');
