@@ -1606,3 +1606,10 @@ html,body{width:100%;max-width:100%}
 }
 .calc-detail>.power-calc-card{max-width:100%}
 @media(max-width:700px){.calc-picker-grid{grid-template-columns:1fr}.calc-picker-btn{min-height:52px}}
+
+
+/* Focus mode: only the Back button and the selected calculator remain visible. */
+#calculatorMode.calc-detail-open .calc-dept-buttons,
+#calculatorMode.calc-detail-open .calc-group-title,
+#calculatorMode.calc-detail-open .calc-picker-grid { display:none!important; }
+#calculatorMode.calc-detail-open .calc-detail { margin-top:0; }
