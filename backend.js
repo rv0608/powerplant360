@@ -32,11 +32,29 @@
   function setAuthLocked(locked) {
     document.body.classList.toggle('auth-locked', Boolean(locked));
     document.body.classList.toggle('auth-ready', !locked);
+    if (!locked) {
+      document.body.classList.remove('public-login-open', 'public-recovery');
+    }
   }
+
+  // Public landing is informational only; portal content remains auth-gated.
+  window.openPortalLogin = function () {
+    if (!document.body.classList.contains('auth-locked')) return;
+    showLoginGate();
+    document.body.classList.add('public-login-open');
+    document.getElementById('loginEmail')?.focus();
+  };
+
+  window.showPublicHome = function () {
+    if (passwordRecoveryMode || !document.body.classList.contains('auth-locked')) return;
+    document.body.classList.remove('public-login-open');
+    document.getElementById('authGate')?.scrollIntoView({block:'start'});
+  };
 
   function showLoginGate(message='') {
     passwordRecoveryMode = false;
     setAuthLocked(true);
+    if (message) document.body.classList.add('public-login-open');
     const body = document.getElementById('authGateBody');
     if (!body) return;
 
@@ -51,12 +69,15 @@
       '<button class="auth-link" onclick="showForgotPassword()">Forgot password?</button>' +
       '<div id="loginMsg" class="auth-message">' + esc(message || '') + '</div>';
 
-    setTimeout(() => document.getElementById('loginEmail')?.focus(), 0);
+    if (document.body.classList.contains('public-login-open')) {
+      setTimeout(() => document.getElementById('loginEmail')?.focus(), 0);
+    }
   }
   window.showLoginGate = showLoginGate;
 
   function showForgotPassword() {
     setAuthLocked(true);
+    document.body.classList.add('public-login-open');
     const body = document.getElementById('authGateBody');
     if (!body) return;
 
@@ -106,6 +127,7 @@
   function showPasswordRecoveryGate(message='') {
     passwordRecoveryMode = true;
     setAuthLocked(true);
+    document.body.classList.add('public-login-open', 'public-recovery');
     const body = document.getElementById('authGateBody');
     if (!body) return;
 
