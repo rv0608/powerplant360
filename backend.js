@@ -64,7 +64,7 @@
       '<label for="loginEmail">Email</label>' +
       '<input id="loginEmail" type="email" autocomplete="username" placeholder="Email address">' +
       '<label for="loginPassword">Password</label>' +
-      '<input id="loginPassword" type="password" autocomplete="current-password" placeholder="Password">' +
+      '<div class="auth-password-wrap"><input id="loginPassword" type="password" autocomplete="current-password" placeholder="Password"><button type="button" class="auth-password-toggle" aria-label="Show password" aria-pressed="false" onclick="toggleAuthPassword(\'loginPassword\',this)">Show</button></div>' +
       '<button class="auth-primary" onclick="login()">Login</button>' +
       '<button class="auth-link" onclick="showForgotPassword()">Forgot password?</button>' +
       '<div id="loginMsg" class="auth-message">' + esc(message || '') + '</div>';
@@ -74,6 +74,19 @@
     }
   }
   window.showLoginGate = showLoginGate;
+
+  // Presentation-only password visibility; never changes credentials or auth logic.
+  window.toggleAuthPassword = function (inputId, button) {
+    const field = document.getElementById(inputId);
+    if (!field || !button) return;
+    const visible = field.type === 'password';
+    field.type = visible ? 'text' : 'password';
+    button.textContent = visible ? 'Hide' : 'Show';
+    button.setAttribute('aria-label', visible ? 'Hide password' : 'Show password');
+    button.setAttribute('aria-pressed', String(visible));
+    field.focus({preventScroll:true});
+  };
+
 
   function showForgotPassword() {
     setAuthLocked(true);
