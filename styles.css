@@ -1913,3 +1913,57 @@ body:not(.auth-locked) .member-dashboard-compact .member-department-grid button:
   body:not(.auth-locked) .member-dashboard-compact .member-department-grid{grid-template-columns:1fr;gap:10px}
   body:not(.auth-locked) .member-dashboard-compact .member-department-grid button{min-height:70px;padding:15px 17px;font-size:18px}
 }
+
+
+/* v3 Phase 1: public-site navigation, information architecture, and mobile polish. */
+html{scroll-behavior:smooth}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+.public-byline{display:inline-block;margin-left:4px;vertical-align:middle;color:#1474aa;font-size:11px;font-weight:800;letter-spacing:.04em;white-space:nowrap}
+.public-nav{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:6px 21px;margin-left:auto}
+.public-nav a,.public-footer nav a{color:inherit;text-decoration:none;font-weight:700;font-size:.88rem}
+.public-nav a{padding:10px 0}
+.public-nav a:hover,.public-footer nav a:hover{color:#1383bd}
+.public-nav a:focus-visible,.public-footer nav a:focus-visible,.public-wordmark:focus-visible,.public-primary:focus-visible,.public-secondary:focus-visible{outline:3px solid #2a96d1;outline-offset:4px;border-radius:5px}
+.public-topbar .public-signin{white-space:nowrap}
+.public-hero,.public-features,.public-about,.public-process{scroll-margin-top:18px}
+.public-about{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(260px,.75fr);align-items:center;gap:54px;padding:72px 0;border-top:1px solid #dfe8f1}
+.public-about-intro h2{margin:14px 0 18px;font-size:clamp(1.8rem,3vw,2.7rem);line-height:1.16;letter-spacing:-.04em}
+.public-about-intro p{color:#5b7185;line-height:1.8;max-width:670px}
+.public-about-highlights{display:grid;gap:12px}
+.public-about-highlights>div{display:grid;gap:7px;padding:19px 21px;border:1px solid #dce7ef;border-radius:13px;background:#fff}
+.public-about-highlights strong{color:#126e9f;font-size:1.05rem}
+.public-about-highlights span{color:#5e7485;line-height:1.5;font-size:.9rem}
+.public-process{padding:68px 0 80px;border-top:1px solid #dfe8f1}
+.public-process-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}
+.public-process-grid article{padding:26px 23px;border:1px solid #dce7ef;border-radius:15px;background:#fff}
+.public-step{display:inline-block;color:#167eaf;font-weight:850;letter-spacing:.07em;font-size:.82rem}
+.public-process-grid h3{font-size:1.15rem;margin:13px 0 10px}
+.public-process-grid p{color:#62798b;line-height:1.65;margin:0;font-size:.92rem}
+.public-footer nav{display:flex;flex-wrap:wrap;gap:12px}
+body.dark .public-about,body.dark .public-process{border-color:#29445b}
+body.dark .public-about-intro p,body.dark .public-about-highlights span,body.dark .public-process-grid p{color:#b1c3d1}
+body.dark .public-about-highlights>div,body.dark .public-process-grid article{background:#182c3e;border-color:#31506a}
+body.dark .public-about-highlights strong,body.dark .public-byline{color:#86d0fa}
+@media(max-width:1080px){
+  .public-topbar{flex-wrap:wrap}
+  .public-nav{order:3;width:100%;margin-left:0;justify-content:flex-start}
+}
+@media(max-width:800px){
+  .public-about{grid-template-columns:1fr;gap:24px}
+  .public-about-highlights{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .public-process-grid{grid-template-columns:1fr;gap:12px}
+}
+@media(max-width:600px){
+  .public-topbar{gap:10px;padding:14px 0}
+  .public-wordmark{font-size:1.06rem}
+  .public-byline{font-size:9px}
+  .public-topbar .public-signin{padding:10px;font-size:.78rem}
+  .public-nav{gap:8px 17px;justify-content:space-between;border-top:1px solid #dfe8f1;padding-top:8px}
+  .public-nav a{font-size:.82rem;padding:6px 0}
+  .public-hero{padding-top:38px;padding-bottom:48px}
+  .public-about{padding:48px 0}
+  .public-about-highlights{grid-template-columns:1fr}
+  .public-process{padding:50px 0}
+  .public-process-grid article{padding:19px}
+  body.dark .public-nav{border-color:#29445b}
+}
