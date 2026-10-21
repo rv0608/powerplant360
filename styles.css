@@ -1777,3 +1777,44 @@ body.dark .public-signin,body.dark .public-cta button{background:#176aa2}
   .calc-search-row label{width:100%}
   .calc-search-row input{flex-basis:180px}
 }
+
+
+/* Phase 2 readability: larger type across the signed-in engineering portal. */
+body:not(.auth-locked){font-size:17px;line-height:1.5}
+body:not(.auth-locked) #tabs.side-tabs button{font-size:16px;line-height:1.45}
+body:not(.auth-locked) .sidebar-head{font-size:16px}
+body:not(.auth-locked) .member-welcome h2{font-size:clamp(1.7rem,2.8vw,2.3rem)}
+body:not(.auth-locked) .member-welcome p{font-size:16px}
+body:not(.auth-locked) .member-eyebrow{font-size:13px}
+body:not(.auth-locked) .member-quick-grid strong{font-size:17px;line-height:1.35}
+body:not(.auth-locked) .member-quick-grid small{font-size:15px;line-height:1.5}
+body:not(.auth-locked) .member-panel h3{font-size:19px}
+body:not(.auth-locked) .member-list-button{font-size:16px;line-height:1.5}
+body:not(.auth-locked) .member-department-grid button{font-size:16px;line-height:1.45}
+body:not(.auth-locked) .member-disclaimer{font-size:14px}
+body:not(.auth-locked) .hero h1{font-size:clamp(1.6rem,2.2vw,2.1rem)}
+body:not(.auth-locked) .hero p{font-size:15px}
+body:not(.auth-locked) .search-ai button,body:not(.auth-locked) .search-ai select{font-size:16px}
+body:not(.auth-locked) .calc-search-row label{font-size:16px}
+body:not(.auth-locked) .calc-picker-btn{font-size:16px}
+body:not(.auth-locked) .power-calc-card h4{font-size:18px}
+body:not(.auth-locked) .power-calc-card label{font-size:15px}
+body:not(.auth-locked) .power-calc-note{font-size:14px}
+/* Accessible visibility toggle: the input remains a normal password field until pressed. */
+.auth-password-wrap{position:relative;width:100%}
+.auth-password-wrap input{width:100%;padding-right:84px}
+.auth-password-toggle{
+  position:absolute;right:6px;top:50%;transform:translateY(-50%);
+  min-width:66px;min-height:40px;padding:8px 10px;
+  border:1px solid #bdd0e2;border-radius:8px;
+  background:#eaf3fc;color:#0b4d7e;font-size:14px;font-weight:750;
+}
+.auth-password-toggle:hover{background:#d9ebfa}
+.auth-password-toggle:focus-visible{outline:3px solid #69b7f3;outline-offset:2px}
+.dark .auth-password-toggle{background:#294661;color:#e8f4ff;border-color:#55728b}
+@media(max-width:600px){
+  body:not(.auth-locked){font-size:16px}
+  body:not(.auth-locked) .member-quick-grid strong{font-size:16px}
+  body:not(.auth-locked) .member-quick-grid small{font-size:14px}
+  body:not(.auth-locked) .member-department-grid button{font-size:16px}
+}
