@@ -208,6 +208,7 @@
     window.pp360BackendRole = backendRole;
     window.pp360SignedIn = Boolean(backendSession);
     window.pp360SearchUserId = backendSession?.user?.id || null;
+    window.pp360SetHistoryUser?.(backendSession?.user?.id || null);
 
     const btn = document.getElementById('plantSearchBtn');
     const onlineBtn = document.getElementById('onlineSearchBtn');
@@ -3912,7 +3913,7 @@
     if (!raw) return;
 
     history = [raw, ...history.filter(x => norm(x) !== norm(raw))].slice(0, 30);
-    localStorage.setItem('pp360history', JSON.stringify(history));
+    saveSearchHistory();
 
     if (backendSession && backendRole && ['admin','engineer','viewer'].includes(backendRole)) {
       const forcedScope = document.getElementById('searchScope')?.value || '';
@@ -4148,7 +4149,7 @@
       }
 
       history = [raw, ...history.filter(x => norm(x) !== norm(raw))].slice(0,30);
-      localStorage.setItem('pp360history',JSON.stringify(history));
+      saveSearchHistory();
       if (progress) progress.complete();
       await new Promise(resolve => setTimeout(resolve, 140));
       renderTabs();
@@ -4229,7 +4230,7 @@
 
       const payload = await res.json();
       history = [raw, ...history.filter(x => norm(x) !== norm(raw))].slice(0,30);
-      localStorage.setItem('pp360history',JSON.stringify(history));
+      saveSearchHistory();
       renderTabs();
       document.getElementById('view').innerHTML = renderRagAnswer(payload);
       window.pp360RememberSearchAnswer?.(raw);
