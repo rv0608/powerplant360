@@ -301,20 +301,14 @@ function show(x){
  renderTabs(x);
  const v=document.getElementById('view');
  if(x==='Home'){
-   const favorites=(()=>{try{return JSON.parse(localStorage.getItem('pp360_calc_favorites')||'[]');}catch(_){return [];}})();
-   const saved=Array.isArray(favorites)&&typeof CALCS!=='undefined'?favorites.map(id=>CALCS.find(c=>c.id===id)).filter(Boolean).slice(0,6):[];
-   const recent=Array.isArray(history)?history.filter(h=>typeof h==='string').slice(0,4):[];
-   v.innerHTML=`<div class='member-dashboard'>
-     <section class='member-welcome'><div><span class='member-eyebrow'>ENGINEERING WORKSPACE</span><h2>Welcome to PowerPlant360</h2><p>Engineering tools, plant knowledge and authorized documents in one workspace.</p></div><button type='button' data-home-action='calculators'>Open Calculators →</button></section>
-     <div class='member-quick-grid'><button data-home-action='calculators'><strong>∑ Calculator Center</strong><small>Engineering formulas</small></button><button data-home-action='converter'><strong>⇄ Unit Converter</strong><small>Plant engineering units</small></button><button data-home-action='search'><strong>⌕ Plant Search</strong><small>Authorized information</small></button><button data-home-action='history'><strong>◷ Search History</strong><small>Previous searches</small></button></div>
-     <div class='member-dashboard-columns'><section class='member-panel'><h3>★ Favorite Calculators</h3>${saved.length?saved.map(c=>`<button class='member-list-button' data-home-calc='${esc(c.id)}'>${esc(c.t)} <span>›</span></button>`).join(''):'<p class=muted>Save calculators with ☆ to see them here.</p>'}</section>
-     <section class='member-panel'><h3>Recent Searches</h3>${recent.length?recent.map((h,i)=>`<button class='member-list-button' data-home-history='${i}'>${esc(h)} <span>›</span></button>`).join(''):'<p class=muted>Your searches will appear here.</p>'}</section></div>
-     <section class='member-panel'><h3>Explore Departments</h3><div class='member-department-grid'>${equipment.map((e,i)=>`<button data-home-equipment='${i}'>${esc(e)} <span>→</span></button>`).join('')}</div></section>
-     <p class='muted member-disclaimer'>Always verify engineering values against approved OEM/design documents and site procedures.</p></div>`;
-   v.querySelectorAll('[data-home-action]').forEach(b=>b.addEventListener('click',()=>{const a=b.dataset.homeAction;if(a==='search'){document.getElementById('q')?.focus();return;}show(a==='history'?'Search History':'Calculators');if(a==='converter')document.querySelector('[data-tool-mode=convert]')?.click();}));
+   v.innerHTML=`<div class='member-dashboard member-dashboard-compact'>
+     <section class='member-panel member-departments-panel' aria-labelledby='memberDepartmentsHeading'>
+       <h2 id='memberDepartmentsHeading'>Explore Departments</h2>
+       <div class='member-department-grid'>${equipment.map((e,i)=>`<button type='button' data-home-equipment='${i}'>${esc(e)} <span aria-hidden='true'>→</span></button>`).join('')}</div>
+     </section>
+     <p class='muted member-disclaimer'>Always verify engineering values against approved OEM/design documents and site procedures.</p>
+   </div>`;
    v.querySelectorAll('[data-home-equipment]').forEach(b=>b.addEventListener('click',()=>equipmentPage(equipment[Number(b.dataset.homeEquipment)])));
-   v.querySelectorAll('[data-home-history]').forEach(b=>b.addEventListener('click',()=>searchTerm(recent[Number(b.dataset.homeHistory)])));
-   v.querySelectorAll('[data-home-calc]').forEach(b=>b.addEventListener('click',()=>{show('Calculators');window.openEngineeringCalculator?.(b.dataset.homeCalc);}));
  }
  if(x==='Search History')renderSearchHistory();
  if(x==='Calculators')window.renderEngineeringTools ? window.renderEngineeringTools() : (v.innerHTML='<div class="card"><h2>Calculators</h2><p class="muted">Calculator module is loading. Refresh once.</p></div>');
