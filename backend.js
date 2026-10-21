@@ -178,6 +178,7 @@
       const { error } = await client().auth.updateUser({password:p1});
       if (error) throw error;
 
+      try { if (backendSession?.user?.id) sessionStorage.removeItem('pp360-session-answers:'+backendSession.user.id); } catch (_) {}
       await client().auth.signOut();
       backendSession = null;
       backendRole = null;
@@ -206,6 +207,7 @@
   function applySearchRoleUi() {
     window.pp360BackendRole = backendRole;
     window.pp360SignedIn = Boolean(backendSession);
+    window.pp360SearchUserId = backendSession?.user?.id || null;
 
     const btn = document.getElementById('plantSearchBtn');
     const onlineBtn = document.getElementById('onlineSearchBtn');
@@ -2109,6 +2111,7 @@
   };
 
   logout = async function () {
+    try { if (backendSession?.user?.id) sessionStorage.removeItem('pp360-session-answers:'+backendSession.user.id); } catch (_) {}
     backendSession = null;
     backendRole = null;
     admin = false;
@@ -3917,6 +3920,7 @@
       if (hits.length) {
         renderTabs();
         document.getElementById('view').innerHTML = renderPrivateHits(raw, hits);
+        window.pp360RememberSearchAnswer?.(raw);
         return;
       }
     }
@@ -4149,6 +4153,7 @@
       await new Promise(resolve => setTimeout(resolve, 140));
       renderTabs();
       document.getElementById('view').innerHTML = renderRagAnswer(payload);
+      window.pp360RememberSearchAnswer?.(raw);
     } catch (err) {
       if (progress) progress.stop();
       const rawMessage = String(err?.message || err || 'Unknown Plant AI error');
@@ -4227,6 +4232,7 @@
       localStorage.setItem('pp360history',JSON.stringify(history));
       renderTabs();
       document.getElementById('view').innerHTML = renderRagAnswer(payload);
+      window.pp360RememberSearchAnswer?.(raw);
     } catch (err) {
       const safeMessage = String(err?.message || err || 'Unknown online search error')
         .replace(/sk-[A-Za-z0-9_-]+/g, '[hidden API key]')

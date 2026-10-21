@@ -1818,3 +1818,38 @@ body:not(.auth-locked) .power-calc-note{font-size:14px}
   body:not(.auth-locked) .member-quick-grid small{font-size:14px}
   body:not(.auth-locked) .member-department-grid button{font-size:16px}
 }
+
+
+/* Search History: answer previews and explicit selection/deletion controls. */
+.search-history-panel{padding:24px}
+.history-top{display:flex;justify-content:space-between;align-items:flex-start;gap:18px;flex-wrap:wrap}
+.history-top h2{margin:0 0 8px}
+.history-top p{margin:0;max-width:660px;line-height:1.5}
+.history-actions{display:flex;flex-wrap:wrap;gap:8px}
+.history-actions button,.history-delete-one,.history-answer button{min-height:44px;background:var(--soft);border:1px solid var(--line);color:var(--ink);font-size:15px;font-weight:650}
+#historyDeleteSelected,#historyClearAll,.history-delete-one{color:#b34545}
+.dark #historyDeleteSelected,.dark #historyClearAll,.dark .history-delete-one{color:#ffb7b7}
+.history-actions button:disabled{opacity:.45;cursor:not-allowed}
+.history-status{margin:18px 0 10px;color:var(--muted);font-size:14px}
+.history-list{display:grid;gap:10px}
+.history-entry{display:flex;align-items:flex-start;gap:14px;background:var(--soft);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.history-check{display:flex;align-items:center;justify-content:center;min-width:30px;min-height:44px;cursor:pointer}
+.history-check input{width:19px;height:19px;cursor:pointer;accent-color:var(--accent)}
+.history-entry-content{flex:1;min-width:0}
+.history-entry-content details{border:0;padding:0}
+.history-entry-content summary{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:44px;list-style:revert;cursor:pointer;font-size:16px;line-height:1.45}
+.history-question{font-weight:750;overflow-wrap:anywhere}
+.history-answer-status{flex-shrink:0;font-size:13px;color:var(--muted);font-weight:500}
+.history-answer{border-top:1px solid var(--line);padding:14px 0 5px;line-height:1.6}
+.history-answer p{margin:0 0 12px;white-space:pre-wrap;overflow-wrap:anywhere}
+.history-answer small{display:block;margin-bottom:12px}
+.history-delete-one{flex-shrink:0}
+@media(max-width:650px){
+  .search-history-panel{padding:16px}
+  .history-actions{width:100%}
+  .history-actions button{flex:1 1 auto;padding:10px}
+  .history-entry{gap:7px;padding:10px 8px;flex-wrap:wrap}
+  .history-entry-content{flex:1 1 calc(100% - 56px)}
+  .history-entry-content summary{align-items:flex-start;flex-direction:column;justify-content:center;gap:3px}
+  .history-delete-one{margin-left:37px}
+}
