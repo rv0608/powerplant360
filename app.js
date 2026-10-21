@@ -230,6 +230,42 @@ const tabs=['Home','Search History','Calculators','DCS Analysis','Mock Interview
 const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 const norm=s=>s.toLowerCase().replace(/[^\w\s&/-]/g,' ').replace(/\s+/g,' ').trim();
 
+// Answer snapshots stay in this browser tab only; plant responses are not persisted in localStorage.
+function answerHistoryKey(){return 'pp360-session-answers:'+String(window.pp360SearchUserId||'anonymous');}
+function readAnswerHistory(){try{const v=JSON.parse(sessionStorage.getItem(answerHistoryKey())||'{}');return v&&typeof v==='object'&&!Array.isArray(v)?v:{};}catch(_){return {};}}
+function writeAnswerHistory(data){try{sessionStorage.setItem(answerHistoryKey(),JSON.stringify(data));}catch(_){/* storage unavailable */}}
+function removeAnswerHistory(terms){const saved=readAnswerHistory();terms.forEach(t=>delete saved[norm(t)]);writeAnswerHistory(saved);}
+window.pp360RememberSearchAnswer=function(query){
+ if(!window.pp360SignedIn || !query)return;
+ const view=document.getElementById('view');
+ const answer=view?.querySelector('.result');
+ if(!answer)return;
+ const copy=answer.cloneNode(true);
+ copy.querySelectorAll('button, input, select, textarea, .result-actions, .actions').forEach(el=>el.remove());
+ const plain=(copy.innerText||copy.textContent||'').replace(/\s+/g,' ').trim().slice(0,12000);
+ if(!plain)return;
+ const saved=readAnswerHistory();saved[norm(query)]={answer:plain,when:new Date().toISOString()};
+ const keep=new Set(history.map(norm));
+ Object.keys(saved).forEach(k=>{if(!keep.has(k))delete saved[k];});
+ writeAnswerHistory(saved);
+};
+function renderSearchHistory(){
+ const view=document.getElementById('view');if(!view)return;
+ const saved=readAnswerHistory();
+ view.innerHTML=`<section class='card search-history-panel'><div class='history-top'><div><h2>Search History</h2><p class='muted'>View questions and saved answers. Answer previews are kept only for this signed-in browser session.</p></div><div class='history-actions'><button type='button' id='historySelectAll' ${history.length?'':'disabled'}>Select All</button><button type='button' id='historyDeleteSelected' disabled>Delete Selected</button><button type='button' id='historyClearAll' ${history.length?'':'disabled'}>Clear All</button></div></div><p class='history-status' id='historySelectionStatus' role='status'>0 selected</p><div class='history-list'>${history.length?history.map((q,i)=>{const a=saved[norm(q)];return `<article class='history-entry'><label class='history-check'><input type='checkbox' data-history-check='${i}' aria-label='Select ${esc(q)}'></label><div class='history-entry-content'><details><summary><span class='history-question'>${esc(q)}</span><span class='history-answer-status'>${a?'Answer saved':'Answer not saved'}</span></summary><div class='history-answer'>${a?`<p>${esc(a.answer)}</p><small class='muted'>Saved ${esc(new Date(a.when).toLocaleString())} · Browser session only</small>`:'<p class="muted">An earlier answer is not available in this session. Search again to generate a new answer.</p>'}<button type='button' data-history-search='${i}'>Search Again →</button></div></details></div><button type='button' class='history-delete-one' data-history-delete='${i}' aria-label='Delete ${esc(q)}'>Delete</button></article>`;}).join(''):'<p class="muted">No searches yet.</p>'}</div></section>`;
+ const checkboxes=Array.from(view.querySelectorAll('[data-history-check]'));
+ const selected=()=>checkboxes.filter(c=>c.checked).map(c=>history[Number(c.dataset.historyCheck)]).filter(Boolean);
+ const update=()=>{const count=selected().length;view.querySelector('#historySelectionStatus').textContent=count+' selected';view.querySelector('#historyDeleteSelected').disabled=!count;view.querySelector('#historySelectAll').textContent=count===history.length&&count?'Deselect All':'Select All';};
+ view.querySelector('#historySelectAll').addEventListener('click',()=>{const all=selected().length===history.length;checkboxes.forEach(c=>c.checked=!all);update();});
+ checkboxes.forEach(c=>c.addEventListener('change',update));
+ function deleteTerms(terms){if(!terms.length)return;if(!window.confirm('Delete '+terms.length+' selected search'+(terms.length===1?'':'es')+'? This cannot be undone.'))return;const keys=new Set(terms.map(norm));history=history.filter(q=>!keys.has(norm(q)));localStorage.setItem('pp360history',JSON.stringify(history));removeAnswerHistory(terms);renderSearchHistory();}
+ view.querySelector('#historyDeleteSelected').addEventListener('click',()=>deleteTerms(selected()));
+ view.querySelector('#historyClearAll').addEventListener('click',()=>deleteTerms(history.slice()));
+ view.querySelectorAll('[data-history-delete]').forEach(b=>b.addEventListener('click',()=>deleteTerms([history[Number(b.dataset.historyDelete)]])));
+ view.querySelectorAll('[data-history-search]').forEach(b=>b.addEventListener('click',()=>searchTerm(history[Number(b.dataset.historySearch)])));
+}
+
+
 function renderTabs(active='Home'){
  const canSeeAdmin=window.pp360SignedIn===true && admin;
  const visibleTabs=tabs.filter(x=>x!=='Admin'||canSeeAdmin);
@@ -258,7 +294,7 @@ function show(x){
    v.querySelectorAll('[data-home-history]').forEach(b=>b.addEventListener('click',()=>searchTerm(recent[Number(b.dataset.homeHistory)])));
    v.querySelectorAll('[data-home-calc]').forEach(b=>b.addEventListener('click',()=>{show('Calculators');window.openEngineeringCalculator?.(b.dataset.homeCalc);}));
  }
- if(x==='Search History')v.innerHTML=`<div class='card'><h2>Search History</h2>${history.length?history.map(h=>`<p>🔎 <button class="linkbtn" onclick="searchTerm('${esc(h).replace(/'/g,"\\'")}')">${esc(h)}</button></p>`).join(''):'<p class=muted>No searches yet.</p>'}</div>`;
+ if(x==='Search History')renderSearchHistory();
  if(x==='Calculators')window.renderEngineeringTools ? window.renderEngineeringTools() : (v.innerHTML='<div class="card"><h2>Calculators</h2><p class="muted">Calculator module is loading. Refresh once.</p></div>');
  if(x==='DCS Analysis')v.innerHTML=`<div class='card'><h2>DCS Daily Report Analysis</h2><p>Production version will parse authorized Excel/CSV daily reports, compare parameters against approved limits and detect historical deviations.</p><div class="notice">For safety, the app will not create alarm/trip limits from generic internet values. You will define or upload the approved plant limits.</div><table><tr><th>Parameter</th><th>Reading</th><th>Status</th></tr><tr><td>Main Steam Temp</td><td>Demo</td><td><span class='badge ok'>NORMAL</span></td></tr><tr><td>ID Fan-A Current</td><td>+14% vs 7-day avg</td><td><span class='badge danger'>ATTENTION</span></td></tr></table></div>`;
  if(x==='Mock Interview')v.innerHTML=`<div class='card'><h2>Mock Interview</h2><select id=role><option>Plant Head</option><option>Operations Manager</option><option>Shift Incharge</option><option>Engineer</option><option>Operator</option></select> <select><option>Boiler</option><option>Turbine</option><option>Electrical</option><option>C&I</option><option>CHP/AHS</option><option>WTP/ETP</option></select><p><b>Q:</b> During sudden furnace draft fluctuation in a CFBC boiler, what parameters and equipment would you check first?</p><textarea style='width:100%;min-height:100px' placeholder='Type your answer...'></textarea></div>`;
@@ -455,6 +491,7 @@ function searchAll(){
  const r=findKnowledge(q);
  renderTabs();
  document.getElementById('view').innerHTML=r?renderAnswer(r,raw):renderNoAnswer(raw);
+ window.pp360RememberSearchAnswer?.(raw);
 }
 
 
