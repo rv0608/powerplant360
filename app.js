@@ -224,7 +224,29 @@ const KB = [
 
 let admin=localStorage.getItem('pp360admin')==='1';
 let docs=JSON.parse(localStorage.getItem('pp360docs')||'null')||sampleDocs;
-let history=JSON.parse(localStorage.getItem('pp360history')||'[]');
+// Search terms are scoped to the authenticated Supabase user, never shared across accounts.
+let history=[];
+let activeHistoryUserId=null;
+function searchHistoryStorageKey(){return activeHistoryUserId?'pp360history:user:'+activeHistoryUserId:null;}
+function saveSearchHistory(){
+ const key=searchHistoryStorageKey();
+ if(!key)return;
+ try{localStorage.setItem(key,JSON.stringify(history));}catch(_){}
+}
+window.pp360SetHistoryUser=function(userId){
+ const next=typeof userId==='string'&&/^[a-f0-9-]{36}$/i.test(userId)?userId:null;
+ if(next===activeHistoryUserId)return;
+ activeHistoryUserId=next;
+ history=[];
+ if(next){
+   try{
+     const saved=JSON.parse(localStorage.getItem(searchHistoryStorageKey())||'[]');
+     if(Array.isArray(saved))history=saved.filter(q=>typeof q==='string').slice(0,30);
+   }catch(_){}
+ }
+ // The old unscoped pp360history is deliberately never loaded or migrated:
+ // it cannot safely be attributed to any individual account.
+};
 const tabs=['Home','Search History','Calculators','DCS Analysis','Mock Interview','Admin'];
 
 const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
@@ -258,7 +280,7 @@ function renderSearchHistory(){
  const update=()=>{const count=selected().length;view.querySelector('#historySelectionStatus').textContent=count+' selected';view.querySelector('#historyDeleteSelected').disabled=!count;view.querySelector('#historySelectAll').textContent=count===history.length&&count?'Deselect All':'Select All';};
  view.querySelector('#historySelectAll').addEventListener('click',()=>{const all=selected().length===history.length;checkboxes.forEach(c=>c.checked=!all);update();});
  checkboxes.forEach(c=>c.addEventListener('change',update));
- function deleteTerms(terms){if(!terms.length)return;if(!window.confirm('Delete '+terms.length+' selected search'+(terms.length===1?'':'es')+'? This cannot be undone.'))return;const keys=new Set(terms.map(norm));history=history.filter(q=>!keys.has(norm(q)));localStorage.setItem('pp360history',JSON.stringify(history));removeAnswerHistory(terms);renderSearchHistory();}
+ function deleteTerms(terms){if(!terms.length)return;if(!window.confirm('Delete '+terms.length+' selected search'+(terms.length===1?'':'es')+'? This cannot be undone.'))return;const keys=new Set(terms.map(norm));history=history.filter(q=>!keys.has(norm(q)));saveSearchHistory();removeAnswerHistory(terms);renderSearchHistory();}
  view.querySelector('#historyDeleteSelected').addEventListener('click',()=>deleteTerms(selected()));
  view.querySelector('#historyClearAll').addEventListener('click',()=>deleteTerms(history.slice()));
  view.querySelectorAll('[data-history-delete]').forEach(b=>b.addEventListener('click',()=>deleteTerms([history[Number(b.dataset.historyDelete)]])));
@@ -487,7 +509,7 @@ function searchAll(){
  let q=norm(raw);
  if(!q)return;
  history=[raw,...history.filter(x=>norm(x)!==q)].slice(0,30);
- localStorage.setItem('pp360history',JSON.stringify(history));
+ saveSearchHistory();
  const r=findKnowledge(q);
  renderTabs();
  document.getElementById('view').innerHTML=r?renderAnswer(r,raw):renderNoAnswer(raw);
